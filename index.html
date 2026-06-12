@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>K 線型態互動教室 · 捏一根 K 棒</title>
+<title>K 線型態互動教室 · 捏 K 棒</title>
 <style>
   :root{
     --bg:#0f1320; --panel:#181e30; --panel2:#202842; --line:#2c3552;
@@ -26,8 +26,16 @@
   h1{font-size:17px;font-weight:800;margin-top:2px}
   h1 small{font-size:11px;color:var(--dim);font-weight:400;margin-left:8px}
 
+  /* 根數分頁 */
+  .tab-seg{display:flex;gap:6px;padding:8px 16px 0}
+  .tab-seg button{
+    flex:1;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    color:var(--dim);font-size:13px;font-weight:700;padding:9px 0;font-family:inherit;
+  }
+  .tab-seg button.on{background:var(--doji);color:#11131f;border-color:transparent}
+
   /* 位置情境切換 */
-  .ctx-seg{display:flex;gap:6px;padding:10px 16px 4px}
+  .ctx-seg{display:flex;gap:6px;padding:8px 16px 4px}
   .ctx-seg button{
     flex:1;background:var(--panel);border:1px solid var(--line);border-radius:12px;
     color:var(--dim);font-size:13px;font-weight:700;padding:9px 0;font-family:inherit;
@@ -38,7 +46,7 @@
   .ctx-seg button.on[data-ctx="high"]{background:var(--up)}
 
   /* 畫布 */
-  .stage{position:relative;flex:1;min-height:300px}
+  .stage{position:relative;flex:1;min-height:280px}
   canvas{display:block;width:100%;height:100%;touch-action:none}
   .swap{
     position:absolute;top:10px;right:12px;
@@ -52,6 +60,7 @@
   }
 
   /* 四價數值列 */
+  .sel-label{font-size:10px;color:var(--dim);padding:0 16px 3px;letter-spacing:1px}
   .quotes{display:flex;gap:6px;padding:0 16px}
   .q{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 0;text-align:center}
   .q .l{font-size:10px;color:var(--dim)}
@@ -80,8 +89,14 @@
 
 <header>
   <div class="brand">龍哥 K 線教室</div>
-  <h1>捏一根 K 棒<small>拖動「高‧開‧收‧低」四個把手,即時判讀型態</small></h1>
+  <h1 id="title">捏一根 K 棒<small id="subtitle">拖動「高‧開‧收‧低」四個把手,即時判讀型態</small></h1>
 </header>
+
+<div class="tab-seg" id="tabSeg">
+  <button data-tab="one" class="on">單根 K 棒</button>
+  <button data-tab="two">兩根組合</button>
+  <button data-tab="three">三根組合</button>
+</div>
 
 <div class="ctx-seg" id="ctxSeg">
   <button data-ctx="low">📉 低檔(大跌後)</button>
@@ -95,6 +110,7 @@
   <div class="hint" id="hint">拖動圓形把手,改變 K 棒形狀</div>
 </div>
 
+<div class="sel-label" id="selLabel" style="display:none">--</div>
 <div class="quotes">
   <div class="q"><div class="l">開盤</div><div class="v" id="qO">--</div></div>
   <div class="q"><div class="l">最高</div><div class="v up" id="qH">--</div></div>
@@ -116,10 +132,28 @@
 
 <script>
 /* ════════════════════════════════════════════════
-   K 棒狀態(價格以 0~100 內部刻度,顯示換算為股價)
+   狀態:三個分頁各自記住自己的 K 棒
+   (價格以 0~100 內部刻度,顯示換算為股價)
 ════════════════════════════════════════════════ */
-const S={o:38,c:62,h:78,l:22,ctx:"mid",drag:null};
+const TABS={
+  one:  {n:1,sel:0,candles:[{o:38,c:62,h:78,l:22}]},
+  two:  {n:2,sel:1,candles:[{o:58,c:40,h:60,l:38},{o:36,c:64,h:66,l:33}]},
+  three:{n:3,sel:2,candles:[{o:70,c:42,h:72,l:40},{o:36,c:32,h:40,l:28},{o:38,c:66,h:68,l:34}]},
+};
+let cur="one", ctxNow="mid";
+const T=()=>TABS[cur];
 const px=v=>(100+v*0.5).toFixed(1);   // 顯示用假股價 100~150
+
+const TABMETA={
+  one:  ["捏一根 K 棒","拖動「高‧開‧收‧低」四個把手,即時判讀型態"],
+  two:  ["捏兩根 K 棒","兩根的相對位置決定型態,每根都能拖"],
+  three:["捏三根 K 棒","三根 K 棒說一個完整的多空故事"],
+};
+
+/* 共用小工具 */
+const bod=k=>Math.abs(k.c-k.o);
+const yang=k=>k.c>k.o, yin=k=>k.c<k.o;
+const bTop=k=>Math.max(k.o,k.c), bBot=k=>Math.min(k.o,k.c);
 
 /* ════════════════════════════════════════════════
    型態知識庫:每型態含特徵 + 低檔/盤整/高檔 三種解讀
@@ -127,7 +161,8 @@ const px=v=>(100+v*0.5).toFixed(1);   // 顯示用假股價 100~150
 const TAG={bull:["看漲訊號","var(--bull)"],bear:["看跌訊號","var(--bear)"],
   rev:["反轉訊號","var(--warn)"],warn:["警示訊號","var(--warn)"],neu:["中性觀望","var(--neutral)"]};
 
-const LIB={
+/* ── 單根 ── */
+const LIB1={
   flat:{feat:"開＝高＝低＝收,全日一價到底。",
     low:["rev","通常是<b>跌停鎖死</b>(恐慌未止、後市續弱)或<b>漲停鎖死</b>(強力反轉第一棒)。低檔若出現漲停一字,常是主力進場的強烈訊號。"],
     mid:["neu","單邊力量壓倒性,鎖漲停=極強、鎖跌停=極弱,順勢解讀即可。"],
@@ -194,14 +229,106 @@ const LIB={
     high:["warn","漲勢動能轉弱的徵兆,高檔連續紡錘要提高警覺。"]},
 };
 
+/* ── 兩根組合 ── */
+const LIB2={
+  engulfBull:{feat:"前一根中長黑,隔天紅 K 開低走高,實體把前一根整個包起來。空方最後的力氣被一口氣吃掉。",
+    low:["bull","<b>低檔看漲吞噬是最強的反轉組合之一</b>:開盤還順勢殺低,收盤卻整根吃回,買盤態度極度強硬。第二根帶大量更可信,停損設在第二根低點。"],
+    mid:["bull","盤整中出現代表多方先發制人,若同時突破區間上緣,可視為攻擊訊號。"],
+    high:["warn","漲多後的長紅吞噬雖強,但乖離已大,<b>提防末升段噴出</b>,不宜重倉追價。"]},
+  engulfBear:{feat:"前一根中長紅,隔天黑 K 開高走低,實體完整吞掉前一根。多方信心一日崩潰。",
+    low:["rev","跌勢中再現吞噬黑,空方仍佔優;但若伴隨爆量,可能是<b>最後趕底</b>,留意隔日是否止跌。"],
+    mid:["bear","空方力道明顯轉強,跌破支撐就要提高警覺。"],
+    high:["bear","<b>高檔看跌吞噬=經典見頂組合</b>:前一天還創高,隔天整根吃掉,主力出貨意味濃,宜速減碼。"]},
+  haramiBull:{feat:"長黑之後,隔天的小紅 K 完全縮在前一根實體之內(像媽媽抱小孩)。跌勢動能急速收縮。",
+    low:["rev","<b>母子線=變盤前兆</b>:空方推不動了,多方開始醞釀。突破母線(第一根)高點即確認反轉,可開始留意買點。"],
+    mid:["neu","動能收縮、市場觀望,等突破方向再行動。"],
+    high:["neu","高檔長黑後的小紅只是暫時喘息,<b>尚未脫離險境</b>,反彈不過前高仍偏空。"]},
+  haramiBear:{feat:"長紅之後,隔天小黑 K 縮在前一根實體內。漲勢動能突然熄火。",
+    low:["neu","反彈中出現代表追價意願不足,短線轉弱,但低檔支撐若不破仍有機會打底。"],
+    mid:["neu","多方推升後動能收縮,等表態。"],
+    high:["bear","<b>高檔母子=漲勢急煞車</b>:前一天還大漲,隔天買盤縮手,跌破母線低點即確認轉折,差不多該獲利了結。"]},
+  haramiCross:{feat:"長 K 之後,隔天收十字線且縮在前一根實體內。比母子線更強烈的「動能歸零」訊號。",
+    low:["rev","<b>十字懷抱的反轉機率比一般母子更高</b>:空方完全推不動,變盤一觸即發,搭配量縮更像底部。"],
+    mid:["neu","市場極度觀望,方向待定。"],
+    high:["warn","高檔出現十字懷抱,多方動能瞬間歸零,<b>頭部風險大增</b>,宜先退出觀望。"]},
+  darkCloud:{feat:"長紅之後開高,卻一路走低收進前一根實體的一半以下。烏雲蓋住昨日的太陽。",
+    low:["warn","低檔反彈遇到烏雲罩頂,代表<b>反彈夭折</b>,上方賣壓仍重,底部還要再磨。"],
+    mid:["bear","開高殺低吃掉半根紅 K,空方反撲力道強,偏空看待。"],
+    high:["bear","<b>經典見頂組合</b>:誘多開高再重殺,把追價的人全部套住,收得越低訊號越強,後市看跌。"]},
+  piercing:{feat:"長黑之後開低,卻一路走高收復前一根實體的一半以上。黑夜中透出曙光。",
+    low:["bull","<b>經典止跌組合</b>:開盤還恐慌殺低,買盤卻強力反攻收復過半,低點有人守,反轉機率高,收得越高越可信。"],
+    mid:["neu","買盤展現承接力,偏多看待,待突破確認。"],
+    high:["warn","高檔深跌後雖被拉回,但已暴露大賣壓,<b>籌碼開始鬆動</b>,勿過度樂觀。"]},
+  tweezerTop:{feat:"兩根 K 棒的最高價幾乎相同,連續兩天攻到同一個價位都被打下來。",
+    low:["neu","反彈兩次卡在同一價位,短線壓力明確,突破它反而是好訊號。"],
+    mid:["bear","同一價位連續被防守,上方賣壓集中,<b>壓力區明確</b>,不易突破。"],
+    high:["bear","<b>鑷頂(平頭頂部)</b>:高檔連兩天攻同價失敗,主力防守價位現形,見頂機率高。"]},
+  tweezerBot:{feat:"兩根 K 棒的最低價幾乎相同,連續兩天殺到同一個價位都被接走。",
+    low:["bull","<b>鑷底(平頭底部)</b>:同一低點連續兩天有人承接,支撐扎實,是可靠的止跌訊號之一。"],
+    mid:["neu","下方支撐明確,可作為停損參考價位。"],
+    high:["warn","高檔雖兩次守住同一低點,但已連續測試支撐,<b>跌破即反轉</b>,提高警戒。"]},
+  twinYang:{feat:"連續兩根中長紅,一根比一根高。買盤連日進場,步步進逼。",
+    low:["bull","<b>連兩紅=反轉確認</b>:第一根可能只是反彈,第二根續強就是趨勢,低檔雙紅常是行情起點。"],
+    mid:["bull","雙紅突破盤整,攻擊發起,順勢操作。"],
+    high:["warn","漲多後連紅雖強,但<b>提防連續噴出後的反轉</b>,越晚進場風險越高。"]},
+  twinYin:{feat:"連續兩根中長黑,一根比一根低。賣壓連日出籠,節節敗退。",
+    low:["rev","恐慌連殺,但<b>大跌末端的連黑也可能殺出最後籌碼</b>,留意是否爆量趕底。"],
+    mid:["bear","連黑跌破支撐,弱勢格局確立,反彈先看壓力。"],
+    high:["bear","<b>高檔連兩黑=趨勢反轉急訊</b>,漲勢結束機率高,持股宜速減。"]},
+  free2:{feat:"這個組合不屬於教科書上的經典型態,但判讀原則不變:看第二根相對第一根的位置與力道。",
+    low:["neu","重點看第二根:收得比第一根高、低點有墊高=空方力道減弱;若持續創低,跌勢未止。試試下方快選,捏出經典組合。"],
+    mid:["neu","盤整中看誰先表態:第二根若帶量突破第一根的高低點,跟著方向走。"],
+    high:["neu","高檔重點防守:第二根若跌破第一根低點即轉弱訊號;守住高點則漲勢未變。"]},
+};
+
+/* ── 三根組合 ── */
+const LIB3={
+  morningStar:{feat:"長黑 → 跳空小星(實體極小) → 長紅收復第一根一半以上。三天演完「絕望→猶豫→反攻」。",
+    low:["bull","<b>教科書級的底部反轉組合</b>:第一天恐慌、第二天止血、第三天買盤全面反攻。第三根帶量更可信,停損設在星的低點。"],
+    mid:["bull","盤整末端出現,往往是向上表態的前奏。"],
+    high:["neu","高檔少見此組合,參考性低,以其他訊號為準。"]},
+  eveningStar:{feat:"長紅 → 跳空小星(實體極小) → 長黑跌破第一根一半以下。三天演完「貪婪→猶豫→出逃」。",
+    low:["neu","低檔少見,若出現代表反彈結束、再探底機率高。"],
+    mid:["bear","上攻失敗後反殺,空方接管,偏空操作。"],
+    high:["bear","<b>教科書級的頭部反轉組合</b>:噴出、力竭、崩落三部曲。夜星一現,行情入夜,宜果斷退出。"]},
+  threeSoldiers:{feat:"連續三根中長紅,收盤一根比一根高,開盤都落在前一根實體附近。多方紀律推進,如士兵列隊。",
+    low:["bull","<b>紅三兵是最可靠的反轉確認之一</b>:連三天買盤接力,趨勢由空翻多,拉回不破第一根低點都可偏多操作。"],
+    mid:["bull","盤整後出現紅三兵=突破確立,攻擊行情展開。"],
+    high:["warn","漲多後再連三紅,<b>小心力竭式的最後衝刺</b>:若實體越來越短、上影越來越長,是強弩之末。"]},
+  threeCrows:{feat:"連續三根中長黑,收盤一根比一根低,開盤都落在前一根實體附近。賣壓連日出籠,如烏鴉盤旋。",
+    low:["rev","連殺三天後空方動能也快耗盡,<b>留意爆量趕底後的反彈</b>,但搶反彈要快進快出。"],
+    mid:["bear","三隻烏鴉跌破盤整區=空頭表態,反彈視為逃命機會。"],
+    high:["bear","<b>教科書級的見頂組合</b>:高檔連三黑,主力出貨完畢,趨勢由多翻空,不要留戀。"]},
+  threeInsideUp:{feat:"長黑+縮在其中的小 K(母子)+第三根紅 K 收過第一根開盤價。母子線的「確認版」。",
+    low:["bull","<b>反轉三部曲走完</b>:止跌(母子)之後,多方真的把價格收回去,比單看母子更可靠,可積極留意買點。"],
+    mid:["bull","動能收縮後向上表態,偏多操作。"],
+    high:["warn","高檔深跌後雖然收回,但波動已劇烈放大,<b>籌碼鬆動</b>,追價要保守。"]},
+  threeInsideDown:{feat:"長紅+縮在其中的小 K(母子)+第三根黑 K 跌破第一根開盤價。漲勢熄火的「確認版」。",
+    low:["bear","反彈失敗確認,短線再探底機率高,等真正的底部訊號。"],
+    mid:["bear","多方推升失敗反遭跌破,空方接管。"],
+    high:["bear","<b>頭部確認組合</b>:動能熄火(母子)之後,空方真的把價格殺下去,轉折確立,宜出場。"]},
+  threeOutsideUp:{feat:"看漲吞噬+第三根紅 K 續創高。吞噬的「確認版」,多方連兩天證明自己。",
+    low:["bull","<b>低檔吞噬後再續強,反轉可信度大增</b>,是右側交易者最愛的進場組合之一。"],
+    mid:["bull","多方連續表態,順勢偏多。"],
+    high:["warn","連續強攻後乖離擴大,<b>注意過熱</b>,分批操作勿一次重倉。"]},
+  threeOutsideDown:{feat:"看跌吞噬+第三根黑 K 續創低。空方連兩天證明自己。",
+    low:["bear","跌勢加速中,刀還在落,<b>不要徒手接刀</b>,等止跌訊號出現再說。"],
+    mid:["bear","空方連續表態,反彈視為減碼點。"],
+    high:["bear","<b>高檔吞噬後再續弱=頭部確立</b>,趨勢反轉,果斷處理持股。"]},
+  free3:{feat:"這個組合不屬於教科書上的經典型態。三根 K 棒就是三天的多空故事:逐根看力道的接續與轉折。",
+    low:["neu","看故事的結局:第三根若收最高,空方的故事講不下去了;若持續創低,跌勢未止。試試下方快選,捏出經典組合。"],
+    mid:["neu","三根方向不一=多空仍在拉鋸,等最後一根的方向被延續再行動。"],
+    high:["neu","高檔重點看第三根:守住前兩根低點=漲勢仍在;跌破=轉弱的第一槍。"]},
+};
+
 /* ════════════════════════════════════════════════
-   型態判別(依實體/上下影線占整體區間的比例)
+   型態判別
 ════════════════════════════════════════════════ */
-function classify(){
-  const o=S.o,c=S.c,h=S.h,l=S.l,R=h-l;
+function classify1(k){
+  const o=k.o,c=k.c,h=k.h,l=k.l,R=h-l;
   if(R<2.5)return["flat","一字線"];
   const body=Math.abs(c-o)/R, up=(h-Math.max(o,c))/R, dn=(Math.min(o,c)-l)/R;
-  const yang=c>o, yin=c<o;
+  const yg=c>o, yn=c<o;
   const T=0.07;            // 「幾乎沒有」門檻
   if(body<0.06){           // 十字家族
     if(up<0.12&&dn>0.45)return["tline","T 字線(蜻蜓十字)"];
@@ -210,34 +337,125 @@ function classify(){
     return["doji","十字線"];
   }
   if(body<0.38){           // 小實體家族
-    if(dn>=body*1.8&&up<T)return["hammer",S.ctx==="high"?"吊人線":"鎚子線"];
-    if(up>=body*1.8&&dn<T)return["invhammer",S.ctx==="high"?"流星線(射擊之星)":"倒鎚線"];
-    if(up>0.14&&dn>0.14)return["spinning","紡錘線"+(yang?"(陽)":yin?"(陰)":"")];
+    if(dn>=body*1.8&&up<T)return["hammer",ctxNow==="high"?"吊人線":"鎚子線"];
+    if(up>=body*1.8&&dn<T)return["invhammer",ctxNow==="high"?"流星線(射擊之星)":"倒鎚線"];
+    if(up>0.14&&dn>0.14)return["spinning","紡錘線"+(yg?"(陽)":yn?"(陰)":"")];
   }
-  if(up<T&&dn<T)return yang?["marubozuUp",body>0.7?"光頭光腳長紅":"光頭光腳陽線"]
-                           :["marubozuDn",body>0.7?"光頭光腳長黑":"光頭光腳陰線"];
-  if(dn<T)return yang?["upShadowUp","只有上影線的陽線"]:["upShadowDn","只有上影線的陰線"];
-  if(up<T)return yang?["dnShadowUp","只有下影線的陽線"]:["dnShadowDn","只有下影線的陰線"];
-  return yang?["bothUp","上下影線陽線"]:["bothDn","上下影線陰線"];
+  if(up<T&&dn<T)return yg?["marubozuUp",body>0.7?"光頭光腳長紅":"光頭光腳陽線"]
+                         :["marubozuDn",body>0.7?"光頭光腳長黑":"光頭光腳陰線"];
+  if(dn<T)return yg?["upShadowUp","只有上影線的陽線"]:["upShadowDn","只有上影線的陰線"];
+  if(up<T)return yg?["dnShadowUp","只有下影線的陽線"]:["dnShadowDn","只有下影線的陰線"];
+  return yg?["bothUp","上下影線陽線"]:["bothDn","上下影線陰線"];
+}
+
+function classify2(a,b){
+  const mid1=(a.o+a.c)/2;
+  if(yin(a)&&yang(b)&&bTop(b)>=bTop(a)+1&&bBot(b)<=bBot(a)-1)return["engulfBull","看漲吞噬"];
+  if(yang(a)&&yin(b)&&bTop(b)>=bTop(a)+1&&bBot(b)<=bBot(a)-1)return["engulfBear","看跌吞噬"];
+  if(bod(a)>=16&&bTop(b)<bTop(a)-1&&bBot(b)>bBot(a)+1){
+    if(bod(b)<2.5)return["haramiCross","十字懷抱(孕線)"];
+    if(bod(b)<bod(a)*0.6)return yin(a)?["haramiBull","看漲母子(懷抱線)"]:["haramiBear","看跌母子(懷抱線)"];
+  }
+  if(yang(a)&&bod(a)>=16&&yin(b)&&b.o>a.c&&b.c<mid1&&b.c>a.o)return["darkCloud","烏雲罩頂"];
+  if(yin(a)&&bod(a)>=16&&yang(b)&&b.o<a.c&&b.c>mid1&&b.c<a.o)return["piercing","貫穿線(曙光乍現)"];
+  if(Math.abs(a.h-b.h)<1.6)return["tweezerTop","平頭頂部(鑷頂)"];
+  if(Math.abs(a.l-b.l)<1.6)return["tweezerBot","平頭底部(鑷底)"];
+  if(yang(a)&&yang(b)&&bod(a)>=12&&bod(b)>=12&&b.c>a.c&&b.o>=bBot(a))return["twinYang","順勢雙陽(連兩紅)"];
+  if(yin(a)&&yin(b)&&bod(a)>=12&&bod(b)>=12&&b.c<a.c&&b.o<=bTop(a))return["twinYin","順勢雙陰(連兩黑)"];
+  return["free2","自由組合"];
+}
+
+function classify3(a,b,c){
+  const mid1=(a.o+a.c)/2;
+  if(yin(a)&&bod(a)>=16&&bod(b)<=8&&bTop(b)<a.c+2&&yang(c)&&bod(c)>=12&&c.c>mid1)
+    return["morningStar","晨星(早晨之星)"];
+  if(yang(a)&&bod(a)>=16&&bod(b)<=8&&bBot(b)>a.c-2&&yin(c)&&bod(c)>=12&&c.c<mid1)
+    return["eveningStar","夜星(黃昏之星)"];
+  const inA=bTop(b)<bTop(a)-1&&bBot(b)>bBot(a)+1;
+  if(yin(a)&&bod(a)>=16&&inA&&yang(c)&&c.c>bTop(a))return["threeInsideUp","內困三日翻紅"];
+  if(yang(a)&&bod(a)>=16&&inA&&yin(c)&&c.c<bBot(a))return["threeInsideDown","內困三日翻黑"];
+  const engB=bTop(b)>=bTop(a)+1&&bBot(b)<=bBot(a)-1;
+  if(yin(a)&&yang(b)&&engB&&yang(c)&&c.c>b.c)return["threeOutsideUp","外側三日翻紅"];
+  if(yang(a)&&yin(b)&&engB&&yin(c)&&c.c<b.c)return["threeOutsideDown","外側三日翻黑"];
+  if(yang(a)&&yang(b)&&yang(c)&&bod(a)>=10&&bod(b)>=10&&bod(c)>=10
+     &&b.c>a.c&&c.c>b.c&&b.o>=bBot(a)&&c.o>=bBot(b))return["threeSoldiers","紅三兵"];
+  if(yin(a)&&yin(b)&&yin(c)&&bod(a)>=10&&bod(b)>=10&&bod(c)>=10
+     &&b.c<a.c&&c.c<b.c&&b.o<=bTop(a)&&c.o<=bTop(b))return["threeCrows","三隻烏鴉(黑三兵)"];
+  return["free3","自由組合"];
 }
 
 /* ════════════════════════════════════════════════
-   解讀卡更新
+   經典型態快選(含建議情境,選了會自動切換)
+════════════════════════════════════════════════ */
+const PRESETS={
+  one:[
+    {t:"長紅(光頭光腳)",k:[{o:18,c:82,h:82,l:18}]},
+    {t:"長黑(光頭光腳)",k:[{o:82,c:18,h:82,l:18}]},
+    {t:"鎚子/吊人線",k:[{o:62,c:72,h:73,l:24}]},
+    {t:"倒鎚/流星線",k:[{o:34,c:26,h:76,l:25}]},
+    {t:"十字線",k:[{o:50,c:50,h:66,l:34}]},
+    {t:"長腳十字",k:[{o:50,c:50,h:84,l:16}]},
+    {t:"T 字線",k:[{o:74,c:74,h:75,l:22}]},
+    {t:"墓碑線",k:[{o:26,c:26,h:80,l:25}]},
+    {t:"上影陽線",k:[{o:30,c:55,h:82,l:29}]},
+    {t:"下影陰線",k:[{o:62,c:44,h:63,l:16}]},
+    {t:"上下影陰線",k:[{o:62,c:40,h:78,l:24}]},
+    {t:"紡錘線",k:[{o:46,c:54,h:72,l:28}]},
+  ],
+  two:[
+    {t:"看漲吞噬",ctx:"low", k:[{o:58,c:40,h:60,l:38},{o:36,c:64,h:66,l:33}]},
+    {t:"看跌吞噬",ctx:"high",k:[{o:42,c:60,h:62,l:40},{o:64,c:36,h:67,l:34}]},
+    {t:"貫穿線",ctx:"low",  k:[{o:66,c:38,h:68,l:36},{o:32,c:55,h:58,l:30}]},
+    {t:"烏雲罩頂",ctx:"high",k:[{o:34,c:62,h:64,l:32},{o:68,c:45,h:70,l:43}]},
+    {t:"看漲母子",ctx:"low", k:[{o:68,c:36,h:70,l:34},{o:46,c:56,h:60,l:42}]},
+    {t:"看跌母子",ctx:"high",k:[{o:32,c:64,h:66,l:30},{o:54,c:44,h:58,l:40}]},
+    {t:"十字懷抱",ctx:"low", k:[{o:68,c:36,h:70,l:34},{o:50,c:50,h:58,l:42}]},
+    {t:"平頭頂部",ctx:"high",k:[{o:40,c:60,h:72,l:38},{o:58,c:44,h:72,l:42}]},
+    {t:"平頭底部",ctx:"low", k:[{o:60,c:40,h:62,l:24},{o:42,c:56,h:58,l:24}]},
+    {t:"順勢雙陽",ctx:"mid", k:[{o:34,c:52,h:54,l:32},{o:48,c:68,h:70,l:46}]},
+    {t:"順勢雙陰",ctx:"mid", k:[{o:66,c:48,h:68,l:46},{o:52,c:32,h:54,l:30}]},
+  ],
+  three:[
+    {t:"晨星",ctx:"low",      k:[{o:70,c:42,h:72,l:40},{o:36,c:32,h:40,l:28},{o:38,c:66,h:68,l:34}]},
+    {t:"夜星",ctx:"high",     k:[{o:30,c:58,h:60,l:28},{o:64,c:68,h:72,l:60},{o:62,c:34,h:64,l:32}]},
+    {t:"紅三兵",ctx:"low",    k:[{o:28,c:44,h:46,l:26},{o:40,c:56,h:58,l:38},{o:52,c:68,h:70,l:50}]},
+    {t:"三隻烏鴉",ctx:"high", k:[{o:72,c:56,h:74,l:54},{o:60,c:44,h:62,l:42},{o:48,c:32,h:50,l:30}]},
+    {t:"內困三日翻紅",ctx:"low", k:[{o:70,c:40,h:72,l:38},{o:48,c:58,h:60,l:46},{o:56,c:76,h:78,l:54}]},
+    {t:"內困三日翻黑",ctx:"high",k:[{o:30,c:60,h:62,l:28},{o:52,c:42,h:56,l:40},{o:44,c:24,h:46,l:22}]},
+    {t:"外側三日翻紅",ctx:"low", k:[{o:56,c:44,h:58,l:42},{o:40,c:60,h:62,l:38},{o:58,c:72,h:74,l:56}]},
+    {t:"外側三日翻黑",ctx:"high",k:[{o:44,c:56,h:58,l:42},{o:60,c:40,h:62,l:38},{o:42,c:28,h:44,l:26}]},
+  ],
+};
+
+/* ════════════════════════════════════════════════
+   DOM 區(以下開始操作畫面)
 ════════════════════════════════════════════════ */
 const $=id=>document.getElementById(id);
+
 function updateCard(){
-  const[key,name]=classify(), p=LIB[key], [tag,text]=p[S.ctx];
+  const cs=T().candles;
+  let key,name,lib;
+  if(T().n===1){[key,name]=classify1(cs[0]);lib=LIB1}
+  else if(T().n===2){[key,name]=classify2(cs[0],cs[1]);lib=LIB2}
+  else{[key,name]=classify3(cs[0],cs[1],cs[2]);lib=LIB3}
+  const p=lib[key],[tag,text]=p[ctxNow];
   $("pName").textContent=name;
   const[tl,tc]=TAG[tag];
   $("pBadge").textContent=tl;$("pBadge").style.background=tc;
   $("pFeat").textContent="型態特徵:"+p.feat;
-  const ctxName={low:"📉 低檔(大跌後)",mid:"盤整中",high:"📈 高檔(大漲後)"}[S.ctx];
+  const ctxName={low:"📉 低檔(大跌後)",mid:"盤整中",high:"📈 高檔(大漲後)"}[ctxNow];
   $("pExp").innerHTML=`<b>${ctxName}出現:</b>`+text;
-  $("qO").textContent=px(S.o);$("qC").textContent=px(S.c);
-  $("qH").textContent=px(S.h);$("qL").textContent=px(S.l);
+  /* 四價顯示選取中的那根 */
+  const K=cs[T().sel];
+  $("qO").textContent=px(K.o);$("qC").textContent=px(K.c);
+  $("qH").textContent=px(K.h);$("qL").textContent=px(K.l);
   $("qO").style.color=$("qC").style.color=
-    S.c>S.o?"var(--up)":S.c<S.o?"var(--down)":"var(--doji)";
+    K.c>K.o?"var(--up)":K.c<K.o?"var(--down)":"var(--doji)";
   $("qH").style.color="var(--up)";$("qL").style.color="var(--down)";
+  if(T().n>1){
+    $("selLabel").style.display="";
+    $("selLabel").textContent=`⬇ 顯示第 ${T().sel+1} 根的四價`+(T().sel===T().n-1?"(最新一根)":"");
+  }else $("selLabel").style.display="none";
 }
 
 /* ════════════════════════════════════════════════
@@ -252,130 +470,169 @@ function resize(){
   W=r.width;H=r.height;ctx.setTransform(dpr,0,0,dpr,0,0);draw();
 }
 window.addEventListener("resize",resize);
-const PT=26,PB=26;                       // 上下留白
+const PT=26,PB=30;                       // 上下留白
 const yAt=v=>PT+(H-PT-PB)*(1-v/100);     // 0~100 → 像素
 const vAt=y=>Math.max(2,Math.min(98,(1-(y-PT)/(H-PT-PB))*100));
-const CX=()=>W*0.46, OFF=58;             // K棒中心 / 開收把手橫向偏移
 
-function color(){return S.c>S.o?getCss("--up"):S.c<S.o?getCss("--down"):getCss("--doji")}
+/* 各分頁的幾何參數:實體寬/開收把手偏移/K棒間距/把手半徑 */
+const GEO={1:{bw:46,off:58,gap:0,hr:15},2:{bw:38,off:42,gap:118,hr:14},3:{bw:28,off:31,gap:94,hr:12}};
+function centers(){
+  const n=T().n,g=GEO[n],gc=W*(n===1?0.46:0.56);
+  return Array.from({length:n},(_,i)=>gc+(i-(n-1)/2)*g.gap);
+}
+
+function candleColor(k){return k.c>k.o?getCss("--up"):k.c<k.o?getCss("--down"):getCss("--doji")}
 function getCss(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
 
 function drawTrend(){ /* 背景前導走勢:讓「位置」看得見 */
-  if(S.ctx==="mid"){
-    const ys=[52,48,53,47,51];drawMini(ys,"#5a6480");return}
-  const down=S.ctx==="low";
-  const ys=down?[86,76,67,57,46]:[14,24,33,43,54];
-  drawMini(ys,down?getCss("--down"):getCss("--up"));
-}
-function drawMini(ys,col){
-  const bw=14,gap=8,x0=CX()-(ys.length)*(bw+gap)-46;
+  const n=T().n,g=GEO[n];
+  const count=n===1?5:3, bw=n===1?14:10, gap=n===1?8:6;
+  let ys,col;
+  if(ctxNow==="mid"){ys=n===1?[52,48,53,47,51]:[51,47,52];col="#5a6480"}
+  else if(ctxNow==="low"){ys=n===1?[86,76,67,57,46]:[80,66,52];col=getCss("--down")}
+  else{ys=n===1?[14,24,33,43,54]:[20,34,48];col=getCss("--up")}
+  const x0=centers()[0]-g.bw/2-count*(bw+gap)-14;
   ctx.globalAlpha=0.28;
   ys.forEach((y,i)=>{
-    const x=x0+i*(bw+gap),yy=yAt(y);
+    const x=x0+i*(bw+gap),yy=yAt(y),half=n===1?16:12,bh=n===1?9:7;
     ctx.strokeStyle=col;ctx.fillStyle=col;
-    ctx.beginPath();ctx.moveTo(x+bw/2,yy-16);ctx.lineTo(x+bw/2,yy+16);ctx.stroke();
-    ctx.fillRect(x,yy-9,bw,18);
+    ctx.beginPath();ctx.moveTo(x+bw/2,yy-half);ctx.lineTo(x+bw/2,yy+half);ctx.stroke();
+    ctx.fillRect(x,yy-bh,bw,bh*2);
   });
   ctx.globalAlpha=1;
   ctx.fillStyle="#6b7488";ctx.font="10px sans-serif";ctx.textAlign="left";
-  ctx.fillText(S.ctx==="low"?"← 前面是一段下跌":S.ctx==="high"?"← 前面是一段上漲":"← 前面是橫盤",x0,yAt(ys[0])+(S.ctx==="high"?34:-26));
+  const label=ctxNow==="low"?"← 前面是一段下跌":ctxNow==="high"?"← 前面是一段上漲":"← 前面是橫盤";
+  ctx.fillText(label,x0,yAt(ys[0])+(ctxNow==="high"?30:-24));
 }
 
 function draw(){
   if(!W)return;
   ctx.clearRect(0,0,W,H);
   drawTrend();
-  const cx=CX(),col=color();
-  const yo=yAt(S.o),yc=yAt(S.c),yh=yAt(S.h),yl=yAt(S.l);
-  const bw=46;
-  /* 影線 */
-  ctx.strokeStyle=col;ctx.lineWidth=3;
-  ctx.beginPath();ctx.moveTo(cx,yh);ctx.lineTo(cx,yl);ctx.stroke();ctx.lineWidth=1;
-  /* 實體 */
-  const top=Math.min(yo,yc),hgt=Math.max(2,Math.abs(yo-yc));
-  ctx.fillStyle=col;ctx.fillRect(cx-bw/2,top,bw,hgt);
-  /* 把手連接線 */
-  ctx.strokeStyle="rgba(255,255,255,0.25)";ctx.setLineDash([3,3]);
-  ctx.beginPath();ctx.moveTo(cx-OFF,yo);ctx.lineTo(cx-bw/2,yo);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(cx+bw/2,yc);ctx.lineTo(cx+OFF,yc);ctx.stroke();
-  ctx.setLineDash([]);
-  /* 四個把手 */
-  handle(cx,yh,"高",getCss("--up"));
-  handle(cx,yl,"低",getCss("--down"));
-  handle(cx-OFF,yo,"開","#9aa6c4");
-  handle(cx+OFF,yc,"收",col);
+  const n=T().n,g=GEO[n],cxs=centers();
+  T().candles.forEach((k,i)=>{
+    const cx=cxs[i],col=candleColor(k),isSel=i===T().sel;
+    const yo=yAt(k.o),yc=yAt(k.c),yh=yAt(k.h),yl=yAt(k.l);
+    /* 影線 */
+    ctx.strokeStyle=col;ctx.lineWidth=n===3?2:3;
+    ctx.beginPath();ctx.moveTo(cx,yh);ctx.lineTo(cx,yl);ctx.stroke();ctx.lineWidth=1;
+    /* 實體 */
+    const top=Math.min(yo,yc),hgt=Math.max(2,Math.abs(yo-yc));
+    ctx.fillStyle=col;ctx.fillRect(cx-g.bw/2,top,g.bw,hgt);
+    /* 把手連接線 */
+    ctx.strokeStyle="rgba(255,255,255,0.25)";ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.moveTo(cx-g.off,yo);ctx.lineTo(cx-g.bw/2,yo);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(cx+g.bw/2,yc);ctx.lineTo(cx+g.off,yc);ctx.stroke();
+    ctx.setLineDash([]);
+    /* 四個把手(未選取的那根淡化) */
+    ctx.globalAlpha=isSel?1:0.55;
+    handle(cx,yh,"高",getCss("--up"),g.hr);
+    handle(cx,yl,"低",getCss("--down"),g.hr);
+    handle(cx-g.off,yo,"開","#9aa6c4",g.hr);
+    handle(cx+g.off,yc,"收",col,g.hr);
+    ctx.globalAlpha=1;
+    /* 第幾根標籤 */
+    if(n>1){
+      ctx.fillStyle=isSel?getCss("--doji"):"#6b7488";
+      ctx.font=(isSel?"bold ":"")+"11px sans-serif";ctx.textAlign="center";
+      ctx.fillText(`第${i+1}根`+(i===n-1?"(最新)":""),cx,H-8);
+    }
+  });
 }
-function handle(x,y,t,c){
-  ctx.beginPath();ctx.arc(x,y,15,0,7);
+function handle(x,y,t,c,r){
+  ctx.beginPath();ctx.arc(x,y,r,0,7);
   ctx.fillStyle="#11141f";ctx.fill();
   ctx.strokeStyle=c;ctx.lineWidth=2;ctx.stroke();ctx.lineWidth=1;
-  ctx.fillStyle=c;ctx.font="bold 12px sans-serif";ctx.textAlign="center";
+  ctx.fillStyle=c;ctx.font="bold "+(r<14?"11":"12")+"px sans-serif";ctx.textAlign="center";
   ctx.fillText(t,x,y+4);
 }
 
 /* ════════════════════════════════════════════════
    拖拉互動
 ════════════════════════════════════════════════ */
-let hintOn=true;
+let drag=null,hintOn=true;
 function pos(e){const r=cv.getBoundingClientRect();const t=e.touches?e.touches[0]:e;
   return{x:t.clientX-r.left,y:t.clientY-r.top}}
 function pick(p){
-  const cx=CX();
-  const hs=[["h",cx,yAt(S.h)],["l",cx,yAt(S.l)],["o",cx-OFF,yAt(S.o)],["c",cx+OFF,yAt(S.c)]];
+  const g=GEO[T().n],cxs=centers();
   let best=null,bd=1e9;
-  hs.forEach(([k,x,y])=>{const d=Math.hypot(p.x-x,p.y-y);if(d<bd){bd=d;best=k}});
-  return bd<40?best:null;
+  T().candles.forEach((k,i)=>{
+    const cx=cxs[i];
+    [["h",cx,yAt(k.h)],["l",cx,yAt(k.l)],["o",cx-g.off,yAt(k.o)],["c",cx+g.off,yAt(k.c)]]
+      .forEach(([key,x,y])=>{const d=Math.hypot(p.x-x,p.y-y);if(d<bd){bd=d;best={i,key}}});
+  });
+  return bd<g.hr+22?best:null;
+}
+function selectByX(x){ /* 沒點到把手時,點哪根就切換顯示哪根 */
+  if(T().n===1)return;
+  const cxs=centers();let bi=0,bd=1e9;
+  cxs.forEach((cx,i)=>{const d=Math.abs(x-cx);if(d<bd){bd=d;bi=i}});
+  if(bd<GEO[T().n].gap/2&&T().sel!==bi){T().sel=bi;draw();updateCard()}
 }
 function dragTo(y){
-  const v=vAt(y),k=S.drag;
-  if(k==="o"){S.o=v;S.h=Math.max(S.h,v);S.l=Math.min(S.l,v)}
-  else if(k==="c"){S.c=v;S.h=Math.max(S.h,v);S.l=Math.min(S.l,v)}
-  else if(k==="h"){S.h=Math.max(v,S.o,S.c)}
-  else if(k==="l"){S.l=Math.min(v,S.o,S.c)}
+  const v=vAt(y),K=T().candles[drag.i],k=drag.key;
+  if(k==="o"){K.o=v;K.h=Math.max(K.h,v);K.l=Math.min(K.l,v)}
+  else if(k==="c"){K.c=v;K.h=Math.max(K.h,v);K.l=Math.min(K.l,v)}
+  else if(k==="h"){K.h=Math.max(v,K.o,K.c)}
+  else if(k==="l"){K.l=Math.min(v,K.o,K.c)}
   draw();updateCard();
   if(hintOn){$("hint").style.opacity=0;hintOn=false}
 }
-cv.addEventListener("touchstart",e=>{e.preventDefault();S.drag=pick(pos(e));if(S.drag)dragTo(pos(e).y)},{passive:false});
-cv.addEventListener("touchmove",e=>{e.preventDefault();if(S.drag)dragTo(pos(e).y)},{passive:false});
-cv.addEventListener("touchend",()=>S.drag=null);
-cv.addEventListener("mousedown",e=>{S.drag=pick(pos(e))});
-cv.addEventListener("mousemove",e=>{if(S.drag)dragTo(pos(e).y)});
-window.addEventListener("mouseup",()=>S.drag=null);
+function down(e){
+  const p=pos(e),h=pick(p);
+  if(h){drag=h;if(T().sel!==h.i){T().sel=h.i}dragTo(p.y)}
+  else selectByX(p.x);
+}
+cv.addEventListener("touchstart",e=>{e.preventDefault();down(e)},{passive:false});
+cv.addEventListener("touchmove",e=>{e.preventDefault();if(drag)dragTo(pos(e).y)},{passive:false});
+cv.addEventListener("touchend",()=>drag=null);
+cv.addEventListener("mousedown",down);
+cv.addEventListener("mousemove",e=>{if(drag)dragTo(pos(e).y)});
+window.addEventListener("mouseup",()=>drag=null);
 
 /* ════════════════════════════════════════════════
-   陽陰互換 / 情境切換 / 經典快選
+   分頁 / 陽陰互換 / 情境切換 / 經典快選
 ════════════════════════════════════════════════ */
-$("swapBtn").addEventListener("click",()=>{
-  [S.o,S.c]=[S.c,S.o];draw();updateCard();
-});
-document.querySelectorAll("#ctxSeg button").forEach(b=>{
+document.querySelectorAll("#tabSeg button").forEach(b=>{
   b.addEventListener("click",()=>{
-    document.querySelectorAll("#ctxSeg button").forEach(x=>x.classList.remove("on"));
-    b.classList.add("on");S.ctx=b.dataset.ctx;draw();updateCard();
+    document.querySelectorAll("#tabSeg button").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on");cur=b.dataset.tab;
+    const[t,sub]=TABMETA[cur];
+    $("title").innerHTML=`${t}<small id="subtitle">${sub}</small>`;
+    buildChips();draw();updateCard();
   });
 });
-const PRESETS=[
-  ["長紅(光頭光腳)",{o:18,c:82,h:82,l:18}],
-  ["長黑(光頭光腳)",{o:82,c:18,h:82,l:18}],
-  ["鎚子/吊人線",{o:62,c:72,h:73,l:24}],
-  ["倒鎚/流星線",{o:34,c:26,h:76,l:25}],
-  ["十字線",{o:50,c:50,h:66,l:34}],
-  ["長腳十字",{o:50,c:50,h:84,l:16}],
-  ["T 字線",{o:74,c:74,h:75,l:22}],
-  ["墓碑線",{o:26,c:26,h:80,l:25}],
-  ["上影陽線",{o:30,c:55,h:82,l:29}],
-  ["下影陰線",{o:62,c:44,h:63,l:16}],
-  ["上下影陰線",{o:62,c:40,h:78,l:24}],
-  ["紡錘線",{o:46,c:54,h:72,l:28}],
-];
-PRESETS.forEach(([t,v])=>{
-  const b=document.createElement("button");b.textContent=t;
-  b.addEventListener("click",()=>{Object.assign(S,v);draw();updateCard()});
-  $("chips").appendChild(b);
+
+$("swapBtn").addEventListener("click",()=>{
+  const K=T().candles[T().sel];
+  [K.o,K.c]=[K.c,K.o];draw();updateCard();
 });
 
+function setCtx(v){
+  ctxNow=v;
+  document.querySelectorAll("#ctxSeg button").forEach(x=>
+    x.classList.toggle("on",x.dataset.ctx===v));
+}
+document.querySelectorAll("#ctxSeg button").forEach(b=>{
+  b.addEventListener("click",()=>{setCtx(b.dataset.ctx);draw();updateCard()});
+});
+
+function buildChips(){
+  const box=$("chips");box.innerHTML="";
+  PRESETS[cur].forEach(p=>{
+    const b=document.createElement("button");b.textContent=p.t;
+    b.addEventListener("click",()=>{
+      T().candles=p.k.map(o=>({...o}));
+      T().sel=T().candles.length-1;
+      if(p.ctx)setCtx(p.ctx);
+      draw();updateCard();
+    });
+    box.appendChild(b);
+  });
+}
+
 /* ── 啟動 ── */
-resize();updateCard();
+buildChips();resize();updateCard();
 </script>
 </body>
 </html>
