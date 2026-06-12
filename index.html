@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>K 線型態互動教室 · 捏一根 K 棒</title>
+<style>
+  :root{
+    --bg:#0f1320; --panel:#181e30; --panel2:#202842; --line:#2c3552;
+    --ink:#eef1f8; --dim:#8b93aa;
+    --up:#e84d5b;     /* 台股紅漲(陽線) */
+    --down:#27c08a;   /* 台股綠跌(陰線) */
+    --doji:#e8b34b;
+    --bull:#e84d5b; --bear:#27c08a; --warn:#e8b34b; --neutral:#7f8aa8;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:var(--bg);color:var(--ink);
+    font-family:"PingFang TC","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
+    display:flex;flex-direction:column;max-width:560px;margin:0 auto;
+    user-select:none;-webkit-user-select:none;overscroll-behavior:none;
+  }
+  header{padding:12px 16px 4px}
+  .brand{font-size:11px;letter-spacing:3px;color:var(--doji)}
+  h1{font-size:17px;font-weight:800;margin-top:2px}
+  h1 small{font-size:11px;color:var(--dim);font-weight:400;margin-left:8px}
+
+  /* 位置情境切換 */
+  .ctx-seg{display:flex;gap:6px;padding:10px 16px 4px}
+  .ctx-seg button{
+    flex:1;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    color:var(--dim);font-size:13px;font-weight:700;padding:9px 0;font-family:inherit;
+  }
+  .ctx-seg button.on{color:#11131f;border-color:transparent}
+  .ctx-seg button.on[data-ctx="low"]{background:var(--down)}
+  .ctx-seg button.on[data-ctx="mid"]{background:#9aa6c4}
+  .ctx-seg button.on[data-ctx="high"]{background:var(--up)}
+
+  /* 畫布 */
+  .stage{position:relative;flex:1;min-height:300px}
+  canvas{display:block;width:100%;height:100%;touch-action:none}
+  .swap{
+    position:absolute;top:10px;right:12px;
+    background:var(--panel2);border:1px solid var(--line);border-radius:99px;
+    color:var(--ink);font-size:12px;font-weight:700;padding:8px 14px;font-family:inherit;
+  }
+  .hint{
+    position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
+    font-size:11px;color:var(--dim);background:rgba(15,19,32,.75);
+    padding:3px 14px;border-radius:99px;pointer-events:none;transition:opacity .5s;white-space:nowrap;
+  }
+
+  /* 四價數值列 */
+  .quotes{display:flex;gap:6px;padding:0 16px}
+  .q{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 0;text-align:center}
+  .q .l{font-size:10px;color:var(--dim)}
+  .q .v{font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:1px}
+
+  /* 解讀卡 */
+  .card{margin:10px 16px 8px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px;min-height:148px}
+  .card-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .pname{font-size:19px;font-weight:800}
+  .badge{font-size:11px;font-weight:800;padding:3px 12px;border-radius:99px;color:#11131f}
+  .feat{font-size:12px;color:var(--dim);margin-top:6px;line-height:1.6}
+  .explain{font-size:14px;line-height:1.8;margin-top:10px;border-top:1px dashed var(--line);padding-top:10px}
+  .explain b{color:var(--doji)}
+
+  /* 經典型態快選 */
+  .chips-label{font-size:11px;color:var(--dim);padding:0 16px;letter-spacing:1px}
+  .chips{display:flex;gap:8px;overflow-x:auto;padding:6px 16px 16px;-webkit-overflow-scrolling:touch}
+  .chips::-webkit-scrollbar{display:none}
+  .chips button{
+    flex:0 0 auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    color:var(--ink);font-size:12px;font-weight:700;padding:9px 14px;font-family:inherit;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">龍哥 K 線教室</div>
+  <h1>捏一根 K 棒<small>拖動「高‧開‧收‧低」四個把手,即時判讀型態</small></h1>
+</header>
+
+<div class="ctx-seg" id="ctxSeg">
+  <button data-ctx="low">📉 低檔(大跌後)</button>
+  <button data-ctx="mid" class="on">盤整中</button>
+  <button data-ctx="high">📈 高檔(大漲後)</button>
+</div>
+
+<div class="stage">
+  <canvas id="cv"></canvas>
+  <button class="swap" id="swapBtn">⇄ 陽陰互換</button>
+  <div class="hint" id="hint">拖動圓形把手,改變 K 棒形狀</div>
+</div>
+
+<div class="quotes">
+  <div class="q"><div class="l">開盤</div><div class="v" id="qO">--</div></div>
+  <div class="q"><div class="l">最高</div><div class="v up" id="qH">--</div></div>
+  <div class="q"><div class="l">最低</div><div class="v" id="qL">--</div></div>
+  <div class="q"><div class="l">收盤</div><div class="v" id="qC">--</div></div>
+</div>
+
+<div class="card">
+  <div class="card-top">
+    <span class="pname" id="pName">--</span>
+    <span class="badge" id="pBadge">--</span>
+  </div>
+  <div class="feat" id="pFeat">--</div>
+  <div class="explain" id="pExp">--</div>
+</div>
+
+<div class="chips-label">經典型態快選</div>
+<div class="chips" id="chips"></div>
+
+<script>
+/* ════════════════════════════════════════════════
+   K 棒狀態(價格以 0~100 內部刻度,顯示換算為股價)
+════════════════════════════════════════════════ */
+const S={o:38,c:62,h:78,l:22,ctx:"mid",drag:null};
+const px=v=>(100+v*0.5).toFixed(1);   // 顯示用假股價 100~150
+
+/* ════════════════════════════════════════════════
+   型態知識庫:每型態含特徵 + 低檔/盤整/高檔 三種解讀
+════════════════════════════════════════════════ */
+const TAG={bull:["看漲訊號","var(--bull)"],bear:["看跌訊號","var(--bear)"],
+  rev:["反轉訊號","var(--warn)"],warn:["警示訊號","var(--warn)"],neu:["中性觀望","var(--neutral)"]};
+
+const LIB={
+  flat:{feat:"開＝高＝低＝收,全日一價到底。",
+    low:["rev","通常是<b>跌停鎖死</b>(恐慌未止、後市續弱)或<b>漲停鎖死</b>(強力反轉第一棒)。低檔若出現漲停一字,常是主力進場的強烈訊號。"],
+    mid:["neu","單邊力量壓倒性,鎖漲停=極強、鎖跌停=極弱,順勢解讀即可。"],
+    high:["warn","高檔漲停一字代表噴出趕頂,動能極強但也接近過熱;若是跌停一字則是<b>崩跌警訊</b>,反應要快。"]},
+  doji:{feat:"開盤價≈收盤價,留上下影線。多空勢均力敵,原本佔優的一方開始失去主導。",
+    low:["bull","<b>低檔十字=空方力竭</b>。下跌途中買盤開始承接,變盤轉漲機率升高,是開始找買點的訊號。可搭配 KD 低檔黃金交叉確認。"],
+    mid:["neu","盤整中的十字線參考性低,只代表市場觀望,等突破方向再行動。"],
+    high:["bear","<b>高檔十字=多方力竭</b>。上漲遭遇賣壓、空方追上多方,差不多是考慮脫手的訊號,隔日若收黑即確認轉折。"]},
+  longleg:{feat:"開收幾乎同價,上下影線都很長。同一根 K 線內多空激烈拉扯,雙方都曾佔優又被打回。",
+    low:["rev","大跌後的長腳十字常是<b>劇烈洗盤的尾聲</b>,殺低有人接、拉高有人試,變盤反彈機率高。"],
+    mid:["neu","市場分歧明顯加大,波動放大但方向未定,等表態。"],
+    high:["warn","高位劇烈震盪,籌碼鬆動,<b>反轉風險高</b>,不宜追價。"]},
+  tline:{feat:"開盤≈最高≈收盤,只留長下影線(T 字/蜻蜓十字)。盤中重挫但買盤把價格全數拉回。",
+    low:["bull","<b>強力止跌訊號</b>:空方一度大幅壓低,買盤全數承接拉回,下方支撐明確,空頭市場可能結束。"],
+    mid:["neu","下方出現承接買盤,屬偏多訊號,待放量確認。"],
+    high:["warn","雖然收回來了,但盤中曾出現巨大賣壓,<b>留意主力盤中出貨</b>,邏輯同吊人線,岌岌可危。"]},
+  gravestone:{feat:"開盤≈最低≈收盤,只留長上影線(倒T/墓碑十字)。多方一度推升,但賣壓把漲幅全數吞回。",
+    low:["rev","多方嘗試反攻雖未成功,但已開始試探,屬<b>初步止跌訊號</b>,需隔日收紅確認。"],
+    mid:["bear","上方賣壓沉重,壓力區明確,突破不易。"],
+    high:["bear","<b>墓碑線,強烈見頂警訊</b>:攻高全被打回,留下滿手套牢,後市看跌力道強,宜先退出觀望。"]},
+  hammer:{feat:"小實體在上、下影線≥實體 2 倍、幾乎無上影線。盤中重挫後被強力買回。",
+    low:["bull","<b>鎚子線</b>:價格被重重打下後,低檔有大買盤敲進,是「止跌回升」的代表型態。注意:強烈空頭中勿急著接刀,站回關鍵均線再確認。"],
+    mid:["neu","下影線代表下方有承接力道,偏多看待但需確認。"],
+    high:["bear","<b>吊人線</b>:外觀與鎚子完全相同,但出現在大漲後意義相反——盤中曾大幅下殺,高檔賣壓已現,多頭險勝卻是強弩之末,頭部反轉警告。"]},
+  invhammer:{feat:"小實體在下、上影線≥實體 2 倍、幾乎無下影線。盤中衝高但被賣壓打回。",
+    low:["rev","<b>倒鎚線</b>:雖收在低檔,但長上影線代表多方曾試圖反攻,是止跌的可能訊號之一,待隔日確認。"],
+    mid:["neu","上方賣壓明顯,短線突破有阻力。"],
+    high:["bear","<b>流星線(射擊之星)</b>:如流星劃過天際,衝高遭強大賣壓摜回,標準的「假突破」套牢線,頭部反轉的強烈訊號。"]},
+  marubozuUp:{feat:"光頭光腳陽線:幾乎沒有影線的長紅實體。從開盤買到收盤,多方力量壓倒性。",
+    low:["bull","<b>低檔長紅常是反轉第一棒</b>(曙光初現),若帶大量更可信,代表買盤強勢進場掃貨。"],
+    mid:["bull","帶量長紅突破盤整區,往往是<b>攻擊發起訊號</b>,強烈漲勢。"],
+    high:["warn","高檔長紅雖強,但要提防<b>末升段噴出</b>:若隔日不續強反收黑,可能是邀請散戶抬轎的出貨棒。"]},
+  marubozuDn:{feat:"光頭光腳陰線:幾乎沒有影線的長黑實體。從開盤殺到收盤,賣方力量壓倒性。",
+    low:["rev","恐慌性殺盤。但大跌末端的<b>爆量長黑也可能是最後趕底</b>,殺完籌碼乾淨反而醞釀反彈,留意隔日是否止跌。"],
+    mid:["bear","長黑跌破支撐即轉弱,是強勢下跌格局,防範跌勢中再出現長黑棒的暴跌。"],
+    high:["bear","<b>高檔長黑=反轉急訊</b>。漲多後一根吞掉多日漲幅,主力出貨意味濃,宜速減碼。"]},
+  upShadowUp:{feat:"只有上影線的陽線:收紅但留上影。上升有阻力,上影線越長,壓力越大。",
+    low:["rev","低檔出現代表<b>開始有人試多</b>,雖攻高遇壓,但買方已進場,屬打底過程。"],
+    mid:["bear","看跌信號:上方賣壓明確,上影線越長,後市越看跌。"],
+    high:["bear","攻高被打回的<b>假突破套牢線</b>,高檔出現要特別小心,常是出貨手法。"]},
+  dnShadowUp:{feat:"只有下影線的陽線:收紅且下影明顯。盤中下殺被買盤接走,先跌後漲,買方力量較大。",
+    low:["bull","<b>看漲信號</b>:跌勢中買盤強力承接並推升收紅,止跌反轉的代表訊號。"],
+    mid:["bull","下方支撐扎實,買方略勝,偏多格局。"],
+    high:["warn","雖收紅,但盤中曾重挫,代表高檔已有大單調節,<b>留意吊人線邏輯</b>,勿過度樂觀。"]},
+  upShadowDn:{feat:"只有上影線的陰線:收黑且留上影。上漲出現壓力,上影線越長,後市越容易看跌。",
+    low:["rev","低檔反彈遇壓收黑,短線仍弱;但若連續出現且低點不再破,是打底跡象。"],
+    mid:["bear","攻高失敗又收黑,空方明顯佔優。"],
+    high:["bear","<b>見頂信號</b>:衝高回落且收黑,比流星更弱勢,頭部成形機率高。"]},
+  dnShadowDn:{feat:"只有下影線的陰線:收黑但下影明顯。下跌出現抗力,下影線越長,後市越容易反轉。",
+    low:["bull","<b>見底信號</b>:殺低有人接,雖收黑但空方力道已被消化,下影越長反轉機率越高。"],
+    mid:["neu","下有支撐、上有賣壓,多空僵持。"],
+    high:["warn","高檔盤中重挫雖有承接,但已暴露賣壓,警惕轉折。"]},
+  bothUp:{feat:"上下影線陽線:紅實體+上下影線。開盤後曾下探、買方勝出推升,收前又遇獲利了結。",
+    low:["bull","<b>反轉信號</b>:大跌後出現,表示股價可能已觸底,多方開始反擊,留意反彈機會。"],
+    mid:["neu","多方略佔上風,但雙方仍在拉鋸,實體越短越勢均力敵。"],
+    high:["warn","<b>反轉信號</b>:大漲後出現代表高位震盪,籌碼開始換手,即將反轉的風險升高。"]},
+  bothDn:{feat:"上下影線陰線:黑實體+上下影線。開盤買方曾強勢,但最終賣方勝出。",
+    low:["rev","<b>反轉信號</b>:大跌後出現,空方雖勝但力道收斂,有反彈的可能。"],
+    mid:["bear","賣方在交戰後勝出,偏空看待,實體越長空方越強。"],
+    high:["bear","<b>反轉信號</b>:大漲後出現,後市可能下跌,獲利者開始撤退。"]},
+  spinning:{feat:"紡錘線:小實體+上下影線。多空在小範圍內反覆拉鋸,誰都沒佔到便宜。",
+    low:["rev","跌勢動能減弱,變盤前兆,搭配量縮更像底部整理。"],
+    mid:["neu","常見於盤整,代表觀望氣氛濃,等待方向。"],
+    high:["warn","漲勢動能轉弱的徵兆,高檔連續紡錘要提高警覺。"]},
+};
+
+/* ════════════════════════════════════════════════
+   型態判別(依實體/上下影線占整體區間的比例)
+════════════════════════════════════════════════ */
+function classify(){
+  const o=S.o,c=S.c,h=S.h,l=S.l,R=h-l;
+  if(R<2.5)return["flat","一字線"];
+  const body=Math.abs(c-o)/R, up=(h-Math.max(o,c))/R, dn=(Math.min(o,c)-l)/R;
+  const yang=c>o, yin=c<o;
+  const T=0.07;            // 「幾乎沒有」門檻
+  if(body<0.06){           // 十字家族
+    if(up<0.12&&dn>0.45)return["tline","T 字線(蜻蜓十字)"];
+    if(dn<0.12&&up>0.45)return["gravestone","倒 T 字線(墓碑十字)"];
+    if(up>0.28&&dn>0.28)return["longleg","長腳十字線"];
+    return["doji","十字線"];
+  }
+  if(body<0.38){           // 小實體家族
+    if(dn>=body*1.8&&up<T)return["hammer",S.ctx==="high"?"吊人線":"鎚子線"];
+    if(up>=body*1.8&&dn<T)return["invhammer",S.ctx==="high"?"流星線(射擊之星)":"倒鎚線"];
+    if(up>0.14&&dn>0.14)return["spinning","紡錘線"+(yang?"(陽)":yin?"(陰)":"")];
+  }
+  if(up<T&&dn<T)return yang?["marubozuUp",body>0.7?"光頭光腳長紅":"光頭光腳陽線"]
+                           :["marubozuDn",body>0.7?"光頭光腳長黑":"光頭光腳陰線"];
+  if(dn<T)return yang?["upShadowUp","只有上影線的陽線"]:["upShadowDn","只有上影線的陰線"];
+  if(up<T)return yang?["dnShadowUp","只有下影線的陽線"]:["dnShadowDn","只有下影線的陰線"];
+  return yang?["bothUp","上下影線陽線"]:["bothDn","上下影線陰線"];
+}
+
+/* ════════════════════════════════════════════════
+   解讀卡更新
+════════════════════════════════════════════════ */
+const $=id=>document.getElementById(id);
+function updateCard(){
+  const[key,name]=classify(), p=LIB[key], [tag,text]=p[S.ctx];
+  $("pName").textContent=name;
+  const[tl,tc]=TAG[tag];
+  $("pBadge").textContent=tl;$("pBadge").style.background=tc;
+  $("pFeat").textContent="型態特徵:"+p.feat;
+  const ctxName={low:"📉 低檔(大跌後)",mid:"盤整中",high:"📈 高檔(大漲後)"}[S.ctx];
+  $("pExp").innerHTML=`<b>${ctxName}出現:</b>`+text;
+  $("qO").textContent=px(S.o);$("qC").textContent=px(S.c);
+  $("qH").textContent=px(S.h);$("qL").textContent=px(S.l);
+  $("qO").style.color=$("qC").style.color=
+    S.c>S.o?"var(--up)":S.c<S.o?"var(--down)":"var(--doji)";
+  $("qH").style.color="var(--up)";$("qL").style.color="var(--down)";
+}
+
+/* ════════════════════════════════════════════════
+   Canvas 繪圖
+════════════════════════════════════════════════ */
+const cv=$("cv"),ctx=cv.getContext("2d");
+let W,H,dpr;
+function resize(){
+  dpr=window.devicePixelRatio||1;
+  const r=cv.parentElement.getBoundingClientRect();
+  cv.width=r.width*dpr;cv.height=r.height*dpr;
+  W=r.width;H=r.height;ctx.setTransform(dpr,0,0,dpr,0,0);draw();
+}
+window.addEventListener("resize",resize);
+const PT=26,PB=26;                       // 上下留白
+const yAt=v=>PT+(H-PT-PB)*(1-v/100);     // 0~100 → 像素
+const vAt=y=>Math.max(2,Math.min(98,(1-(y-PT)/(H-PT-PB))*100));
+const CX=()=>W*0.46, OFF=58;             // K棒中心 / 開收把手橫向偏移
+
+function color(){return S.c>S.o?getCss("--up"):S.c<S.o?getCss("--down"):getCss("--doji")}
+function getCss(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
+
+function drawTrend(){ /* 背景前導走勢:讓「位置」看得見 */
+  if(S.ctx==="mid"){
+    const ys=[52,48,53,47,51];drawMini(ys,"#5a6480");return}
+  const down=S.ctx==="low";
+  const ys=down?[86,76,67,57,46]:[14,24,33,43,54];
+  drawMini(ys,down?getCss("--down"):getCss("--up"));
+}
+function drawMini(ys,col){
+  const bw=14,gap=8,x0=CX()-(ys.length)*(bw+gap)-46;
+  ctx.globalAlpha=0.28;
+  ys.forEach((y,i)=>{
+    const x=x0+i*(bw+gap),yy=yAt(y);
+    ctx.strokeStyle=col;ctx.fillStyle=col;
+    ctx.beginPath();ctx.moveTo(x+bw/2,yy-16);ctx.lineTo(x+bw/2,yy+16);ctx.stroke();
+    ctx.fillRect(x,yy-9,bw,18);
+  });
+  ctx.globalAlpha=1;
+  ctx.fillStyle="#6b7488";ctx.font="10px sans-serif";ctx.textAlign="left";
+  ctx.fillText(S.ctx==="low"?"← 前面是一段下跌":S.ctx==="high"?"← 前面是一段上漲":"← 前面是橫盤",x0,yAt(ys[0])+(S.ctx==="high"?34:-26));
+}
+
+function draw(){
+  if(!W)return;
+  ctx.clearRect(0,0,W,H);
+  drawTrend();
+  const cx=CX(),col=color();
+  const yo=yAt(S.o),yc=yAt(S.c),yh=yAt(S.h),yl=yAt(S.l);
+  const bw=46;
+  /* 影線 */
+  ctx.strokeStyle=col;ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(cx,yh);ctx.lineTo(cx,yl);ctx.stroke();ctx.lineWidth=1;
+  /* 實體 */
+  const top=Math.min(yo,yc),hgt=Math.max(2,Math.abs(yo-yc));
+  ctx.fillStyle=col;ctx.fillRect(cx-bw/2,top,bw,hgt);
+  /* 把手連接線 */
+  ctx.strokeStyle="rgba(255,255,255,0.25)";ctx.setLineDash([3,3]);
+  ctx.beginPath();ctx.moveTo(cx-OFF,yo);ctx.lineTo(cx-bw/2,yo);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx+bw/2,yc);ctx.lineTo(cx+OFF,yc);ctx.stroke();
+  ctx.setLineDash([]);
+  /* 四個把手 */
+  handle(cx,yh,"高",getCss("--up"));
+  handle(cx,yl,"低",getCss("--down"));
+  handle(cx-OFF,yo,"開","#9aa6c4");
+  handle(cx+OFF,yc,"收",col);
+}
+function handle(x,y,t,c){
+  ctx.beginPath();ctx.arc(x,y,15,0,7);
+  ctx.fillStyle="#11141f";ctx.fill();
+  ctx.strokeStyle=c;ctx.lineWidth=2;ctx.stroke();ctx.lineWidth=1;
+  ctx.fillStyle=c;ctx.font="bold 12px sans-serif";ctx.textAlign="center";
+  ctx.fillText(t,x,y+4);
+}
+
+/* ════════════════════════════════════════════════
+   拖拉互動
+════════════════════════════════════════════════ */
+let hintOn=true;
+function pos(e){const r=cv.getBoundingClientRect();const t=e.touches?e.touches[0]:e;
+  return{x:t.clientX-r.left,y:t.clientY-r.top}}
+function pick(p){
+  const cx=CX();
+  const hs=[["h",cx,yAt(S.h)],["l",cx,yAt(S.l)],["o",cx-OFF,yAt(S.o)],["c",cx+OFF,yAt(S.c)]];
+  let best=null,bd=1e9;
+  hs.forEach(([k,x,y])=>{const d=Math.hypot(p.x-x,p.y-y);if(d<bd){bd=d;best=k}});
+  return bd<40?best:null;
+}
+function dragTo(y){
+  const v=vAt(y),k=S.drag;
+  if(k==="o"){S.o=v;S.h=Math.max(S.h,v);S.l=Math.min(S.l,v)}
+  else if(k==="c"){S.c=v;S.h=Math.max(S.h,v);S.l=Math.min(S.l,v)}
+  else if(k==="h"){S.h=Math.max(v,S.o,S.c)}
+  else if(k==="l"){S.l=Math.min(v,S.o,S.c)}
+  draw();updateCard();
+  if(hintOn){$("hint").style.opacity=0;hintOn=false}
+}
+cv.addEventListener("touchstart",e=>{e.preventDefault();S.drag=pick(pos(e));if(S.drag)dragTo(pos(e).y)},{passive:false});
+cv.addEventListener("touchmove",e=>{e.preventDefault();if(S.drag)dragTo(pos(e).y)},{passive:false});
+cv.addEventListener("touchend",()=>S.drag=null);
+cv.addEventListener("mousedown",e=>{S.drag=pick(pos(e))});
+cv.addEventListener("mousemove",e=>{if(S.drag)dragTo(pos(e).y)});
+window.addEventListener("mouseup",()=>S.drag=null);
+
+/* ════════════════════════════════════════════════
+   陽陰互換 / 情境切換 / 經典快選
+════════════════════════════════════════════════ */
+$("swapBtn").addEventListener("click",()=>{
+  [S.o,S.c]=[S.c,S.o];draw();updateCard();
+});
+document.querySelectorAll("#ctxSeg button").forEach(b=>{
+  b.addEventListener("click",()=>{
+    document.querySelectorAll("#ctxSeg button").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on");S.ctx=b.dataset.ctx;draw();updateCard();
+  });
+});
+const PRESETS=[
+  ["長紅(光頭光腳)",{o:18,c:82,h:82,l:18}],
+  ["長黑(光頭光腳)",{o:82,c:18,h:82,l:18}],
+  ["鎚子/吊人線",{o:62,c:72,h:73,l:24}],
+  ["倒鎚/流星線",{o:34,c:26,h:76,l:25}],
+  ["十字線",{o:50,c:50,h:66,l:34}],
+  ["長腳十字",{o:50,c:50,h:84,l:16}],
+  ["T 字線",{o:74,c:74,h:75,l:22}],
+  ["墓碑線",{o:26,c:26,h:80,l:25}],
+  ["上影陽線",{o:30,c:55,h:82,l:29}],
+  ["下影陰線",{o:62,c:44,h:63,l:16}],
+  ["上下影陰線",{o:62,c:40,h:78,l:24}],
+  ["紡錘線",{o:46,c:54,h:72,l:28}],
+];
+PRESETS.forEach(([t,v])=>{
+  const b=document.createElement("button");b.textContent=t;
+  b.addEventListener("click",()=>{Object.assign(S,v);draw();updateCard()});
+  $("chips").appendChild(b);
+});
+
+/* ── 啟動 ── */
+resize();updateCard();
+</script>
+</body>
+</html>
