@@ -68,11 +68,9 @@
   .q input.v{
     background:transparent;border:none;outline:none;color:inherit;
     font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;
-    text-align:center;width:100%;font-family:inherit;
-    -moz-appearance:textfield;cursor:pointer;
+    text-align:center;width:100%;font-family:inherit;cursor:pointer;
+    user-select:text;-webkit-user-select:text;
   }
-  .q input.v::-webkit-outer-spin-button,
-  .q input.v::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   .q:focus-within{border-color:var(--doji)}
 
   /* 解讀卡 */
@@ -121,10 +119,10 @@
 
 <div class="sel-label" id="selLabel" style="display:none">--</div>
 <div class="quotes">
-  <div class="q"><div class="l">開盤</div><input class="v" id="qO" type="number" inputmode="decimal" step="0.1"></div>
-  <div class="q"><div class="l">最高</div><input class="v" id="qH" type="number" inputmode="decimal" step="0.1"></div>
-  <div class="q"><div class="l">最低</div><input class="v" id="qL" type="number" inputmode="decimal" step="0.1"></div>
-  <div class="q"><div class="l">收盤</div><input class="v" id="qC" type="number" inputmode="decimal" step="0.1"></div>
+  <div class="q"><div class="l">開盤</div><input class="v" id="qO" type="text" inputmode="decimal" pattern="[0-9.]*"></div>
+  <div class="q"><div class="l">最高</div><input class="v" id="qH" type="text" inputmode="decimal" pattern="[0-9.]*"></div>
+  <div class="q"><div class="l">最低</div><input class="v" id="qL" type="text" inputmode="decimal" pattern="[0-9.]*"></div>
+  <div class="q"><div class="l">收盤</div><input class="v" id="qC" type="text" inputmode="decimal" pattern="[0-9.]*"></div>
 </div>
 
 <div class="card">
