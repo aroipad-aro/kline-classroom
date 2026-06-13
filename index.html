@@ -62,9 +62,18 @@
   /* 四價數值列 */
   .sel-label{font-size:10px;color:var(--dim);padding:0 16px 3px;letter-spacing:1px}
   .quotes{display:flex;gap:6px;padding:0 16px}
-  .q{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 0;text-align:center}
+  .q{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 0;text-align:center;transition:border-color .15s}
   .q .l{font-size:10px;color:var(--dim)}
   .q .v{font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:1px}
+  .q input.v{
+    background:transparent;border:none;outline:none;color:inherit;
+    font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;
+    text-align:center;width:100%;font-family:inherit;
+    -moz-appearance:textfield;cursor:pointer;
+  }
+  .q input.v::-webkit-outer-spin-button,
+  .q input.v::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .q:focus-within{border-color:var(--doji)}
 
   /* 解讀卡 */
   .card{margin:10px 16px 8px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px;min-height:148px}
@@ -112,10 +121,10 @@
 
 <div class="sel-label" id="selLabel" style="display:none">--</div>
 <div class="quotes">
-  <div class="q"><div class="l">開盤</div><div class="v" id="qO">--</div></div>
-  <div class="q"><div class="l">最高</div><div class="v up" id="qH">--</div></div>
-  <div class="q"><div class="l">最低</div><div class="v" id="qL">--</div></div>
-  <div class="q"><div class="l">收盤</div><div class="v" id="qC">--</div></div>
+  <div class="q"><div class="l">開盤</div><input class="v" id="qO" type="number" inputmode="decimal" step="0.1"></div>
+  <div class="q"><div class="l">最高</div><input class="v" id="qH" type="number" inputmode="decimal" step="0.1"></div>
+  <div class="q"><div class="l">最低</div><input class="v" id="qL" type="number" inputmode="decimal" step="0.1"></div>
+  <div class="q"><div class="l">收盤</div><input class="v" id="qC" type="number" inputmode="decimal" step="0.1"></div>
 </div>
 
 <div class="card">
@@ -143,6 +152,8 @@ const TABS={
 let cur="one", ctxNow="mid";
 const T=()=>TABS[cur];
 const px=v=>(100+v*0.5).toFixed(1);   // 顯示用假股價 100~150
+const un=price=>Math.max(2,Math.min(98,(price-100)*2)); // px() 反函數
+const editing=new Set();               // 記錄目前正在輸入的欄位 id
 
 const TABMETA={
   one:  ["捏一根 K 棒","拖動「高‧開‧收‧低」四個把手,即時判讀型態"],
@@ -445,12 +456,14 @@ function updateCard(){
   $("pFeat").textContent="型態特徵:"+p.feat;
   const ctxName={low:"📉 低檔(大跌後)",mid:"盤整中",high:"📈 高檔(大漲後)"}[ctxNow];
   $("pExp").innerHTML=`<b>${ctxName}出現:</b>`+text;
-  /* 四價顯示選取中的那根 */
+  /* 四價顯示選取中的那根（正在輸入中的欄位不覆蓋） */
   const K=cs[T().sel];
-  $("qO").textContent=px(K.o);$("qC").textContent=px(K.c);
-  $("qH").textContent=px(K.h);$("qL").textContent=px(K.l);
-  $("qO").style.color=$("qC").style.color=
-    K.c>K.o?"var(--up)":K.c<K.o?"var(--down)":"var(--doji)";
+  if(!editing.has("qO")){$("qO").value=px(K.o);}
+  if(!editing.has("qC")){$("qC").value=px(K.c);}
+  if(!editing.has("qH")){$("qH").value=px(K.h);}
+  if(!editing.has("qL")){$("qL").value=px(K.l);}
+  const ocColor=K.c>K.o?"var(--up)":K.c<K.o?"var(--down)":"var(--doji)";
+  $("qO").style.color=$("qC").style.color=ocColor;
   $("qH").style.color="var(--up)";$("qL").style.color="var(--down)";
   if(T().n>1){
     $("selLabel").style.display="";
@@ -630,6 +643,27 @@ function buildChips(){
     box.appendChild(b);
   });
 }
+
+/* ════════════════════════════════════════════════
+   四價輸入框:點選開啟手機數字鍵盤,離開後更新 K 棒
+════════════════════════════════════════════════ */
+["qO","qH","qL","qC"].forEach(id=>{
+  const el=$(id),field=id[1].toLowerCase(); // 'O'→'o' 等
+  el.addEventListener("focus",()=>{editing.add(id);el.select();});
+  el.addEventListener("blur",()=>{
+    editing.delete(id);
+    const price=parseFloat(el.value);
+    if(!isNaN(price)&&price>=100&&price<=150){
+      const K=T().candles[T().sel],v=un(price);
+      if(field==="o"){K.o=v;K.h=Math.max(K.h,v);K.l=Math.min(K.l,v);}
+      else if(field==="c"){K.c=v;K.h=Math.max(K.h,v);K.l=Math.min(K.l,v);}
+      else if(field==="h"){K.h=Math.max(v,K.o,K.c);}
+      else if(field==="l"){K.l=Math.min(v,K.o,K.c);}
+    }
+    draw();updateCard();
+  });
+  el.addEventListener("keydown",e=>{if(e.key==="Enter")el.blur();});
+});
 
 /* ── 啟動 ── */
 buildChips();resize();updateCard();
