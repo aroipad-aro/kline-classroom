@@ -14,25 +14,20 @@
     --bull:#e84d5b; --bear:#27c08a; --warn:#e8b34b; --neutral:#7f8aa8;
   }
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{height:100%}
+  /* 整頁可上下捲動,但隱藏捲軸 */
+  html{height:100%}
+  html,body{scrollbar-width:none;-ms-overflow-style:none}
+  html::-webkit-scrollbar,body::-webkit-scrollbar{display:none}
   body{
-    background:var(--bg);color:var(--ink);
+    background:var(--bg);color:var(--ink);min-height:100%;
     font-family:"PingFang TC","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
-    display:flex;flex-direction:column;max-width:560px;margin:0 auto;
-    user-select:none;-webkit-user-select:none;overscroll-behavior:none;
+    display:flex;flex-direction:column;max-width:560px;margin:0 auto;padding-bottom:24px;
+    user-select:none;-webkit-user-select:none;overscroll-behavior-y:none;
   }
   header{padding:12px 16px 4px}
   .brand{font-size:11px;letter-spacing:3px;color:var(--doji)}
   h1{font-size:17px;font-weight:800;margin-top:2px}
-  h1 small{font-size:11px;color:var(--dim);font-weight:400;margin-left:8px}
-
-  /* 根數分頁 */
-  .tab-seg{display:flex;gap:6px;padding:8px 16px 0}
-  .tab-seg button{
-    flex:1;background:var(--panel);border:1px solid var(--line);border-radius:12px;
-    color:var(--dim);font-size:13px;font-weight:700;padding:9px 0;font-family:inherit;
-  }
-  .tab-seg button.on{background:var(--doji);color:#11131f;border-color:transparent}
+  h1 small{font-size:11px;color:var(--dim);font-weight:400;margin-left:8px;display:block;margin-top:3px}
 
   /* 位置情境切換 */
   .ctx-seg{display:flex;gap:6px;padding:8px 16px 4px}
@@ -46,7 +41,7 @@
   .ctx-seg button.on[data-ctx="high"]{background:var(--up)}
 
   /* 畫布 */
-  .stage{position:relative;flex:1;min-height:280px}
+  .stage{position:relative;height:300px;flex:0 0 auto}
   canvas{display:block;width:100%;height:100%;touch-action:none}
   .swap{
     position:absolute;top:10px;right:12px;
@@ -59,33 +54,48 @@
     padding:3px 14px;border-radius:99px;pointer-events:none;transition:opacity .5s;white-space:nowrap;
   }
 
-  /* 四價數值列 */
-  .sel-label{font-size:10px;color:var(--dim);padding:0 16px 3px;letter-spacing:1px}
-  .quotes{display:flex;gap:6px;padding:0 16px}
-  .q{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 0;text-align:center;transition:border-color .15s}
-  .q .l{font-size:10px;color:var(--dim)}
-  .q .v{font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:1px}
-  .q input.v{
-    background:transparent;border:none;outline:none;color:inherit;
-    font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;
-    text-align:center;width:100%;font-family:inherit;cursor:pointer;
-    user-select:text;-webkit-user-select:text;
-  }
-  .q:focus-within{border-color:var(--doji)}
-
-  /* 套用按鈕列 */
-  .apply-row{display:flex;align-items:center;gap:10px;padding:8px 16px 2px}
-  .apply-row button{
-    flex:0 0 auto;background:var(--doji);border:none;border-radius:10px;
-    color:#11131f;font-size:13px;font-weight:800;padding:9px 18px;font-family:inherit;
-  }
-  .apply-row button:active{opacity:.8}
-  .apply-msg{font-size:11px;color:var(--dim);line-height:1.4;flex:1}
+  .msg-row{padding:6px 16px 0;min-height:18px}
+  .apply-msg{font-size:11px;color:var(--dim);line-height:1.4}
   .apply-msg.err{color:var(--up)}
   .apply-msg.ok{color:var(--down)}
 
+  /* K 棒清單 */
+  .list-head{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 6px;font-size:11px;color:var(--dim);letter-spacing:1px}
+  .mini-btn{
+    background:var(--panel2);border:1px solid var(--line);border-radius:99px;
+    color:var(--doji);font-size:12px;font-weight:800;padding:6px 14px;font-family:inherit;letter-spacing:0;
+  }
+  .mini-btn:active{opacity:.8}
+  .clist{padding:0 16px}
+  .crow{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;transition:border-color .12s}
+  .crow.sel{border-color:var(--doji)}
+  .crow.reordering{border-color:var(--doji);opacity:.65}
+  .crow-main{display:flex;align-items:center;gap:10px}
+  .crow .drag{cursor:grab;color:var(--dim);font-size:19px;background:none;border:none;padding:0 4px;font-family:inherit;touch-action:none}
+  .cinfo{flex:1;min-width:0;cursor:pointer}
+  .ctitle{font-size:14px;font-weight:800;display:flex;align-items:center;gap:8px}
+  .ctitle .tag{font-size:10px;font-weight:800;padding:2px 9px;border-radius:99px;color:#11131f}
+  .csub{font-size:12px;color:var(--dim);margin-top:3px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cdel{background:none;border:none;color:var(--up);font-size:21px;line-height:1;padding:0 4px;font-family:inherit;cursor:pointer}
+
+  .cedit{margin-top:10px;border-top:1px dashed var(--line);padding-top:10px}
+  .cedit .quotes{display:flex;gap:6px}
+  .cedit .q{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:6px 0;text-align:center;transition:border-color .15s}
+  .cedit .q .l{font-size:10px;color:var(--dim)}
+  .cedit .q input{
+    background:transparent;border:none;outline:none;color:var(--ink);
+    font-size:15px;font-weight:800;text-align:center;width:100%;font-family:inherit;
+    font-variant-numeric:tabular-nums;user-select:text;-webkit-user-select:text;
+  }
+  .cedit .q:focus-within{border-color:var(--doji)}
+  .cedit .apply{
+    margin-top:9px;width:100%;background:var(--doji);border:none;border-radius:10px;
+    color:#11131f;font-size:13px;font-weight:800;padding:10px 0;font-family:inherit;
+  }
+  .cedit .apply:active{opacity:.85}
+
   /* 解讀卡 */
-  .card{margin:10px 16px 8px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px;min-height:148px}
+  .card{margin:12px 16px 8px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px;min-height:148px}
   .card-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .pname{font-size:19px;font-weight:800}
   .badge{font-size:11px;font-weight:800;padding:3px 12px;border-radius:99px;color:#11131f}
@@ -93,28 +103,34 @@
   .explain{font-size:14px;line-height:1.8;margin-top:10px;border-top:1px dashed var(--line);padding-top:10px}
   .explain b{color:var(--doji)}
 
-  /* 經典型態快選 */
+  /* 經典型態快選 / 我的收藏 */
   .chips-label{font-size:11px;color:var(--dim);padding:0 16px;letter-spacing:1px}
-  .chips{display:flex;gap:8px;overflow-x:auto;padding:6px 16px 16px;-webkit-overflow-scrolling:touch}
+  .chips{display:flex;gap:8px;overflow-x:auto;padding:6px 16px 14px;-webkit-overflow-scrolling:touch}
   .chips::-webkit-scrollbar{display:none}
   .chips button{
     flex:0 0 auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;
     color:var(--ink);font-size:12px;font-weight:700;padding:9px 14px;font-family:inherit;
   }
+  .saves-head{display:flex;align-items:center;justify-content:space-between;padding-top:4px}
+  .save-chip{
+    flex:0 0 auto;display:flex;align-items:center;gap:8px;
+    background:var(--panel2);border:1px solid var(--doji);border-radius:12px;
+    color:var(--ink);font-size:12px;font-weight:700;padding:9px 14px;font-family:inherit;
+  }
+  .save-chip .name{cursor:pointer}
+  .save-chip .del{
+    color:var(--dim);font-weight:800;font-size:15px;line-height:1;
+    border:none;background:transparent;padding:0;font-family:inherit;cursor:pointer;
+  }
+  .saves .empty{flex:0 0 auto;color:var(--dim);font-size:12px;padding:9px 2px}
 </style>
 </head>
 <body>
 
 <header>
   <div class="brand">龍哥 K 線教室</div>
-  <h1 id="title">捏一根 K 棒<small id="subtitle">拖動「高‧開‧收‧低」四個把手,即時判讀型態</small></h1>
+  <h1>捏 K 棒 · 多根序列<small>新增多根 K 棒、拖曳排序、就地改四價,自動判讀最新 1～3 根型態</small></h1>
 </header>
-
-<div class="tab-seg" id="tabSeg">
-  <button data-tab="one" class="on">單根 K 棒</button>
-  <button data-tab="two">兩根組合</button>
-  <button data-tab="three">三根組合</button>
-</div>
 
 <div class="ctx-seg" id="ctxSeg">
   <button data-ctx="low">📉 低檔(大跌後)</button>
@@ -125,19 +141,7 @@
 <div class="stage">
   <canvas id="cv"></canvas>
   <button class="swap" id="swapBtn">⇄ 陽陰互換</button>
-  <div class="hint" id="hint">拖動圓形把手,改變 K 棒形狀</div>
-</div>
-
-<div class="sel-label" id="selLabel" style="display:none">--</div>
-<div class="quotes">
-  <div class="q"><div class="l">開盤</div><input class="v" id="qO" type="text" inputmode="decimal" pattern="[0-9.]*"></div>
-  <div class="q"><div class="l">最高</div><input class="v" id="qH" type="text" inputmode="decimal" pattern="[0-9.]*"></div>
-  <div class="q"><div class="l">最低</div><input class="v" id="qL" type="text" inputmode="decimal" pattern="[0-9.]*"></div>
-  <div class="q"><div class="l">收盤</div><input class="v" id="qC" type="text" inputmode="decimal" pattern="[0-9.]*"></div>
-</div>
-<div class="apply-row">
-  <button id="applyBtn">套用四價</button>
-  <span class="apply-msg" id="applyMsg">輸入真實股價(任意數值)後按套用,即時判讀型態</span>
+  <div class="hint" id="hint">拖動把手改形狀,或在下方清單改四價</div>
 </div>
 
 <div class="card">
@@ -149,34 +153,35 @@
   <div class="explain" id="pExp">--</div>
 </div>
 
-<div class="chips-label">經典型態快選</div>
+<div class="msg-row"><span class="apply-msg" id="applyMsg">在清單點某根輸入真實股價,多根共用同一條價格軸自動判讀型態</span></div>
+
+<div class="list-head">
+  K 棒清單(由左到右 = 時間順序)<button id="addBtn" class="mini-btn">＋ 新增 K 棒</button>
+</div>
+<div class="clist" id="clist"></div>
+
+<div class="chips-label">經典型態快選(一鍵載入整組)</div>
 <div class="chips" id="chips"></div>
+
+<div class="chips-label saves-head">
+  我的收藏<button id="saveBtn" class="mini-btn">＋ 儲存目前畫面</button>
+</div>
+<div class="chips saves" id="saves"></div>
 
 <script>
 /* ════════════════════════════════════════════════
-   狀態:三個分頁各自記住自己的 K 棒
-   (價格以 0~100 內部刻度,顯示換算為股價)
+   狀態:單一可變長度的 K 棒清單,共用一條動態價格軸
+   (每根內部以 0~100 刻度繪圖/判別;rp 為使用者輸入的真實股價)
 ════════════════════════════════════════════════ */
-const DEF_AXIS={min:100,max:150};      // 預設價格軸,維持初始畫面不變
-const TABS={
-  one:  {n:1,sel:0,axis:{...DEF_AXIS},candles:[{o:38,c:62,h:78,l:22}]},
-  two:  {n:2,sel:1,axis:{...DEF_AXIS},candles:[{o:58,c:40,h:60,l:38},{o:36,c:64,h:66,l:33}]},
-  three:{n:3,sel:2,axis:{...DEF_AXIS},candles:[{o:70,c:42,h:72,l:40},{o:36,c:32,h:40,l:28},{o:38,c:66,h:68,l:34}]},
-};
-let cur="one", ctxNow="mid";
-const T=()=>TABS[cur];
-/* 內部 0~100 ↔ 真實股價,以分頁各自的動態價格軸換算 */
-const priceOf=(v,a=T().axis)=>a.min+(a.max-a.min)*v/100;   // 內部→真實股價
-const un=(price,a=T().axis)=>(price-a.min)/(a.max-a.min)*100; // 真實股價→內部(不夾擠)
-const fmtPrice=p=>{const s=p.toFixed(2);return s.replace(/\.?0+$/,"");}; // 去尾端多餘 0
-const px=(v,a=T().axis)=>fmtPrice(priceOf(v,a));           // 顯示用字串
-const editing=new Set();               // 記錄目前正在輸入的欄位 id
+const DEF_AXIS={min:100,max:150};
+let candles=[{o:38,c:62,h:78,l:22}];
+let axis={...DEF_AXIS};
+let sel=0, expanded=-1, ctxNow="mid";
 
-const TABMETA={
-  one:  ["捏一根 K 棒","拖動「高‧開‧收‧低」四個把手,即時判讀型態"],
-  two:  ["捏兩根 K 棒","兩根的相對位置決定型態,每根都能拖"],
-  three:["捏三根 K 棒","三根 K 棒說一個完整的多空故事"],
-};
+const priceOf=(v,a=axis)=>a.min+(a.max-a.min)*v/100;       // 內部→真實股價
+const un=(price,a=axis)=>(price-a.min)/(a.max-a.min)*100;   // 真實股價→內部
+const fmtPrice=p=>{const s=(+p).toFixed(2);return s.replace(/\.?0+$/,"");};
+const px=(v,a=axis)=>fmtPrice(priceOf(v,a));
 
 /* 共用小工具 */
 const bod=k=>Math.abs(k.c-k.o);
@@ -413,7 +418,7 @@ function classify3(a,b,c){
 }
 
 /* ════════════════════════════════════════════════
-   經典型態快選(含建議情境,選了會自動切換)
+   經典型態快選(一鍵載入整組)
 ════════════════════════════════════════════════ */
 const PRESETS={
   one:[
@@ -454,42 +459,50 @@ const PRESETS={
     {t:"外側三日翻黑",ctx:"high",k:[{o:44,c:56,h:58,l:42},{o:60,c:40,h:62,l:38},{o:42,c:28,h:44,l:26}]},
   ],
 };
+const ALLPRESETS=[...PRESETS.one,...PRESETS.two,...PRESETS.three];
 
 /* ════════════════════════════════════════════════
-   DOM 區(以下開始操作畫面)
+   DOM
 ════════════════════════════════════════════════ */
 const $=id=>document.getElementById(id);
+function setMsg(text,cls){const el=$("applyMsg");el.textContent=text;el.className="apply-msg"+(cls?" "+cls:"");}
 
-function updateCard(){
-  const cs=T().candles;
+/* 依「已輸入真實價(rp)的根」算出共用價格軸,再把這些根換算回內部 0~100。
+   尚未輸入真實價的根維持原本內部形狀,顯示價自動落在同一條軸上。 */
+function refit(){
+  const entered=candles.filter(k=>k.rp);
+  if(entered.length){
+    let lo=Math.min(...entered.map(k=>k.rp.l)),hi=Math.max(...entered.map(k=>k.rp.h));
+    let span=hi-lo;if(span<1e-6)span=Math.max(hi*0.04,1);
+    const pad=0.235*span;axis={min:lo-pad,max:hi+pad};
+  }
+  candles.forEach(k=>{if(k.rp){k.o=un(k.rp.o);k.c=un(k.rp.c);k.h=un(k.rp.h);k.l=un(k.rp.l);}});
+}
+
+/* ── 型態判讀:取清單最新 1～3 根 ── */
+function judge(){
+  const n=candles.length;
+  if(!n){
+    $("pName").textContent="—";$("pBadge").textContent="";$("pBadge").style.background="transparent";
+    $("pFeat").textContent="清單目前沒有 K 棒。";
+    $("pExp").innerHTML="按上方「＋ 新增 K 棒」開始捏出你的 K 線序列。";
+    return;
+  }
   let key,name,lib;
-  if(T().n===1){[key,name]=classify1(cs[0]);lib=LIB1}
-  else if(T().n===2){[key,name]=classify2(cs[0],cs[1]);lib=LIB2}
-  else{[key,name]=classify3(cs[0],cs[1],cs[2]);lib=LIB3}
+  if(n===1){[key,name]=classify1(candles[0]);lib=LIB1;}
+  else if(n===2){[key,name]=classify2(candles[n-2],candles[n-1]);lib=LIB2;}
+  else{[key,name]=classify3(candles[n-3],candles[n-2],candles[n-1]);lib=LIB3;}
   const p=lib[key],[tag,text]=p[ctxNow];
   $("pName").textContent=name;
-  const[tl,tc]=TAG[tag];
-  $("pBadge").textContent=tl;$("pBadge").style.background=tc;
-  $("pFeat").textContent="型態特徵:"+p.feat;
+  const[tl,tc]=TAG[tag];$("pBadge").textContent=tl;$("pBadge").style.background=tc;
+  const judged=n>3?`(判讀最新三根:第 ${n-2}～${n} 根) `:n>1?`(判讀最新 ${Math.min(n,3)} 根) `:"";
+  $("pFeat").textContent=judged+"型態特徵:"+p.feat;
   const ctxName={low:"📉 低檔(大跌後)",mid:"盤整中",high:"📈 高檔(大漲後)"}[ctxNow];
   $("pExp").innerHTML=`<b>${ctxName}出現:</b>`+text;
-  /* 四價顯示選取中的那根（正在輸入中的欄位不覆蓋） */
-  const K=cs[T().sel];
-  if(!editing.has("qO")){$("qO").value=px(K.o);}
-  if(!editing.has("qC")){$("qC").value=px(K.c);}
-  if(!editing.has("qH")){$("qH").value=px(K.h);}
-  if(!editing.has("qL")){$("qL").value=px(K.l);}
-  const ocColor=K.c>K.o?"var(--up)":K.c<K.o?"var(--down)":"var(--doji)";
-  $("qO").style.color=$("qC").style.color=ocColor;
-  $("qH").style.color="var(--up)";$("qL").style.color="var(--down)";
-  if(T().n>1){
-    $("selLabel").style.display="";
-    $("selLabel").textContent=`⬇ 顯示第 ${T().sel+1} 根的四價`+(T().sel===T().n-1?"(最新一根)":"");
-  }else $("selLabel").style.display="none";
 }
 
 /* ════════════════════════════════════════════════
-   Canvas 繪圖
+   Canvas 繪圖(可變根數,動態幾何)
 ════════════════════════════════════════════════ */
 const cv=$("cv"),ctx=cv.getContext("2d");
 let W,H,dpr;
@@ -500,73 +513,75 @@ function resize(){
   W=r.width;H=r.height;ctx.setTransform(dpr,0,0,dpr,0,0);draw();
 }
 window.addEventListener("resize",resize);
-const PT=26,PB=30;                       // 上下留白
-const yAt=v=>PT+(H-PT-PB)*(1-v/100);     // 0~100 → 像素
+const PT=26,PB=30;
+const yAt=v=>PT+(H-PT-PB)*(1-v/100);
 const vAt=y=>Math.max(2,Math.min(98,(1-(y-PT)/(H-PT-PB))*100));
 
-/* 各分頁的幾何參數:實體寬/開收把手偏移/K棒間距/把手半徑 */
-const GEO={1:{bw:46,off:58,gap:0,hr:15},2:{bw:38,off:42,gap:118,hr:14},3:{bw:28,off:31,gap:94,hr:12}};
-function centers(){
-  const n=T().n,g=GEO[n],gc=W*(n===1?0.46:0.56);
-  return Array.from({length:n},(_,i)=>gc+(i-(n-1)/2)*g.gap);
+function geo(){
+  const n=candles.length||1;
+  const margin=24;
+  const usable=Math.max(40,W-margin*2);
+  const slot=usable/n;
+  const bw=Math.max(5,Math.min(46,slot*0.34));
+  const hr=Math.max(7,Math.min(15,slot*0.18));
+  const off=Math.max(bw/2+10,Math.min(58,slot*0.32));
+  return{n,margin,slot,bw,hr,off};
 }
+function centers(){const{margin,slot}=geo();return candles.map((_,i)=>margin+slot*(i+0.5));}
+function candleColor(k){return k.c>k.o?getCss("--up"):k.c<k.o?getCss("--down"):getCss("--doji");}
+function getCss(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
 
-function candleColor(k){return k.c>k.o?getCss("--up"):k.c<k.o?getCss("--down"):getCss("--doji")}
-function getCss(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
-
-function drawTrend(){ /* 背景前導走勢:讓「位置」看得見 */
-  const n=T().n,g=GEO[n];
-  const count=n===1?5:3, bw=n===1?14:10, gap=n===1?8:6;
+function drawTrend(){
+  if(!candles.length||candles.length>3)return;
+  const c0=centers()[0];
+  const count=3,bw=10,gap=6;
   let ys,col;
-  if(ctxNow==="mid"){ys=n===1?[52,48,53,47,51]:[51,47,52];col="#5a6480"}
-  else if(ctxNow==="low"){ys=n===1?[86,76,67,57,46]:[80,66,52];col=getCss("--down")}
-  else{ys=n===1?[14,24,33,43,54]:[20,34,48];col=getCss("--up")}
-  const x0=centers()[0]-g.bw/2-count*(bw+gap)-14;
+  if(ctxNow==="mid"){ys=[51,47,52];col="#5a6480";}
+  else if(ctxNow==="low"){ys=[80,66,52];col=getCss("--down");}
+  else{ys=[20,34,48];col=getCss("--up");}
+  let x0=c0-geo().bw/2-count*(bw+gap)-14;
+  if(x0<2)return;
   ctx.globalAlpha=0.28;
-  ys.forEach((y,i)=>{
-    const x=x0+i*(bw+gap),yy=yAt(y),half=n===1?16:12,bh=n===1?9:7;
+  ys.forEach((y,i)=>{const x=x0+i*(bw+gap),yy=yAt(y);
     ctx.strokeStyle=col;ctx.fillStyle=col;
-    ctx.beginPath();ctx.moveTo(x+bw/2,yy-half);ctx.lineTo(x+bw/2,yy+half);ctx.stroke();
-    ctx.fillRect(x,yy-bh,bw,bh*2);
-  });
+    ctx.beginPath();ctx.moveTo(x+bw/2,yy-12);ctx.lineTo(x+bw/2,yy+12);ctx.stroke();
+    ctx.fillRect(x,yy-7,bw,14);});
   ctx.globalAlpha=1;
   ctx.fillStyle="#6b7488";ctx.font="10px sans-serif";ctx.textAlign="left";
-  const label=ctxNow==="low"?"← 前面是一段下跌":ctxNow==="high"?"← 前面是一段上漲":"← 前面是橫盤";
-  ctx.fillText(label,x0,yAt(ys[0])+(ctxNow==="high"?30:-24));
+  const label=ctxNow==="low"?"← 前面一段下跌":ctxNow==="high"?"← 前面一段上漲":"← 前面橫盤";
+  ctx.fillText(label,x0,yAt(ys[0])+(ctxNow==="high"?28:-22));
 }
 
 function draw(){
   if(!W)return;
   ctx.clearRect(0,0,W,H);
   drawTrend();
-  const n=T().n,g=GEO[n],cxs=centers();
-  T().candles.forEach((k,i)=>{
-    const cx=cxs[i],col=candleColor(k),isSel=i===T().sel;
+  if(!candles.length){
+    ctx.fillStyle="#6b7488";ctx.font="13px sans-serif";ctx.textAlign="center";
+    ctx.fillText("清單沒有 K 棒,按「＋ 新增 K 棒」開始",W/2,H/2);
+    return;
+  }
+  const g=geo(),cxs=centers();
+  candles.forEach((k,i)=>{
+    const cx=cxs[i],col=candleColor(k),isSel=i===sel;
     const yo=yAt(k.o),yc=yAt(k.c),yh=yAt(k.h),yl=yAt(k.l);
-    /* 影線 */
-    ctx.strokeStyle=col;ctx.lineWidth=n===3?2:3;
+    ctx.strokeStyle=col;ctx.lineWidth=g.bw<14?2:3;
     ctx.beginPath();ctx.moveTo(cx,yh);ctx.lineTo(cx,yl);ctx.stroke();ctx.lineWidth=1;
-    /* 實體 */
     const top=Math.min(yo,yc),hgt=Math.max(2,Math.abs(yo-yc));
     ctx.fillStyle=col;ctx.fillRect(cx-g.bw/2,top,g.bw,hgt);
-    /* 把手連接線 */
-    ctx.strokeStyle="rgba(255,255,255,0.25)";ctx.setLineDash([3,3]);
-    ctx.beginPath();ctx.moveTo(cx-g.off,yo);ctx.lineTo(cx-g.bw/2,yo);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(cx+g.bw/2,yc);ctx.lineTo(cx+g.off,yc);ctx.stroke();
-    ctx.setLineDash([]);
-    /* 四個把手(未選取的那根淡化) */
-    ctx.globalAlpha=isSel?1:0.55;
-    handle(cx,yh,"高",getCss("--up"),g.hr);
-    handle(cx,yl,"低",getCss("--down"),g.hr);
-    handle(cx-g.off,yo,"開","#9aa6c4",g.hr);
-    handle(cx+g.off,yc,"收",col,g.hr);
-    ctx.globalAlpha=1;
-    /* 第幾根標籤 */
-    if(n>1){
-      ctx.fillStyle=isSel?getCss("--doji"):"#6b7488";
-      ctx.font=(isSel?"bold ":"")+"11px sans-serif";ctx.textAlign="center";
-      ctx.fillText(`第${i+1}根`+(i===n-1?"(最新)":""),cx,H-8);
+    if(isSel){
+      ctx.strokeStyle="rgba(255,255,255,0.25)";ctx.setLineDash([3,3]);
+      ctx.beginPath();ctx.moveTo(cx-g.off,yo);ctx.lineTo(cx-g.bw/2,yo);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(cx+g.bw/2,yc);ctx.lineTo(cx+g.off,yc);ctx.stroke();
+      ctx.setLineDash([]);
+      handle(cx,yh,"高",getCss("--up"),g.hr);
+      handle(cx,yl,"低",getCss("--down"),g.hr);
+      handle(cx-g.off,yo,"開","#9aa6c4",g.hr);
+      handle(cx+g.off,yc,"收",col,g.hr);
     }
+    ctx.fillStyle=isSel?getCss("--doji"):"#6b7488";
+    ctx.font=(isSel?"bold ":"")+"10px sans-serif";ctx.textAlign="center";
+    ctx.fillText(`${i+1}`+(i===candles.length-1?"·新":""),cx,H-8);
   });
 }
 function handle(x,y,t,c,r){
@@ -578,142 +593,227 @@ function handle(x,y,t,c,r){
 }
 
 /* ════════════════════════════════════════════════
-   拖拉互動
+   Canvas 拖拉:選取那根的四個把手
 ════════════════════════════════════════════════ */
 let drag=null,hintOn=true;
 function pos(e){const r=cv.getBoundingClientRect();const t=e.touches?e.touches[0]:e;
-  return{x:t.clientX-r.left,y:t.clientY-r.top}}
+  return{x:t.clientX-r.left,y:t.clientY-r.top};}
 function pick(p){
-  const g=GEO[T().n],cxs=centers();
+  if(!candles.length)return null;
+  const g=geo(),cx=centers()[sel],k=candles[sel];
   let best=null,bd=1e9;
-  T().candles.forEach((k,i)=>{
-    const cx=cxs[i];
-    [["h",cx,yAt(k.h)],["l",cx,yAt(k.l)],["o",cx-g.off,yAt(k.o)],["c",cx+g.off,yAt(k.c)]]
-      .forEach(([key,x,y])=>{const d=Math.hypot(p.x-x,p.y-y);if(d<bd){bd=d;best={i,key}}});
-  });
+  [["h",cx,yAt(k.h)],["l",cx,yAt(k.l)],["o",cx-g.off,yAt(k.o)],["c",cx+g.off,yAt(k.c)]]
+   .forEach(([key,x,y])=>{const d=Math.hypot(p.x-x,p.y-y);if(d<bd){bd=d;best={i:sel,key};}});
   return bd<g.hr+22?best:null;
 }
-function selectByX(x){ /* 沒點到把手時,點哪根就切換顯示哪根 */
-  if(T().n===1)return;
+function selectByX(x){
   const cxs=centers();let bi=0,bd=1e9;
-  cxs.forEach((cx,i)=>{const d=Math.abs(x-cx);if(d<bd){bd=d;bi=i}});
-  if(bd<GEO[T().n].gap/2&&T().sel!==bi){T().sel=bi;draw();updateCard()}
+  cxs.forEach((cx,i)=>{const d=Math.abs(x-cx);if(d<bd){bd=d;bi=i;}});
+  if(bd<geo().slot/2&&sel!==bi){sel=bi;renderList();draw();judge();}
 }
 function dragTo(y){
-  const v=vAt(y),K=T().candles[drag.i],k=drag.key;
-  if(k==="o"){K.o=v;K.h=Math.max(K.h,v);K.l=Math.min(K.l,v)}
-  else if(k==="c"){K.c=v;K.h=Math.max(K.h,v);K.l=Math.min(K.l,v)}
-  else if(k==="h"){K.h=Math.max(v,K.o,K.c)}
-  else if(k==="l"){K.l=Math.min(v,K.o,K.c)}
-  draw();updateCard();
-  if(hintOn){$("hint").style.opacity=0;hintOn=false}
+  const v=vAt(y),K=candles[drag.i],k=drag.key;
+  if(k==="o"){K.o=v;K.h=Math.max(K.h,v);K.l=Math.min(K.l,v);}
+  else if(k==="c"){K.c=v;K.h=Math.max(K.h,v);K.l=Math.min(K.l,v);}
+  else if(k==="h"){K.h=Math.max(v,K.o,K.c);}
+  else if(k==="l"){K.l=Math.min(v,K.o,K.c);}
+  if(K.rp){K.rp={o:priceOf(K.o),h:priceOf(K.h),l:priceOf(K.l),c:priceOf(K.c)};}
+  draw();judge();
+  if(hintOn){$("hint").style.opacity=0;hintOn=false;}
 }
-function down(e){
-  const p=pos(e),h=pick(p);
-  if(h){drag=h;if(T().sel!==h.i){T().sel=h.i}dragTo(p.y)}
-  else selectByX(p.x);
-}
-cv.addEventListener("touchstart",e=>{e.preventDefault();down(e)},{passive:false});
-cv.addEventListener("touchmove",e=>{e.preventDefault();if(drag)dragTo(pos(e).y)},{passive:false});
-cv.addEventListener("touchend",()=>drag=null);
+function down(e){const p=pos(e),h=pick(p);if(h){drag=h;dragTo(p.y);}else selectByX(p.x);}
+function endDrag(){if(drag){drag=null;renderList();}}
+cv.addEventListener("touchstart",e=>{e.preventDefault();down(e);},{passive:false});
+cv.addEventListener("touchmove",e=>{e.preventDefault();if(drag)dragTo(pos(e).y);},{passive:false});
+cv.addEventListener("touchend",endDrag);
 cv.addEventListener("mousedown",down);
-cv.addEventListener("mousemove",e=>{if(drag)dragTo(pos(e).y)});
-window.addEventListener("mouseup",()=>drag=null);
-
-/* ════════════════════════════════════════════════
-   分頁 / 陽陰互換 / 情境切換 / 經典快選
-════════════════════════════════════════════════ */
-document.querySelectorAll("#tabSeg button").forEach(b=>{
-  b.addEventListener("click",()=>{
-    document.querySelectorAll("#tabSeg button").forEach(x=>x.classList.remove("on"));
-    b.classList.add("on");cur=b.dataset.tab;
-    const[t,sub]=TABMETA[cur];
-    $("title").innerHTML=`${t}<small id="subtitle">${sub}</small>`;
-    buildChips();draw();updateCard();
-  });
-});
+cv.addEventListener("mousemove",e=>{if(drag)dragTo(pos(e).y);});
+window.addEventListener("mouseup",endDrag);
 
 $("swapBtn").addEventListener("click",()=>{
-  const K=T().candles[T().sel];
-  [K.o,K.c]=[K.c,K.o];draw();updateCard();
+  if(!candles.length)return;
+  const K=candles[sel];[K.o,K.c]=[K.c,K.o];
+  if(K.rp){[K.rp.o,K.rp.c]=[K.rp.c,K.rp.o];}
+  draw();judge();renderList();
 });
 
-function setCtx(v){
-  ctxNow=v;
-  document.querySelectorAll("#ctxSeg button").forEach(x=>
-    x.classList.toggle("on",x.dataset.ctx===v));
-}
+/* ── 情境切換 ── */
+function setCtx(v){ctxNow=v;document.querySelectorAll("#ctxSeg button").forEach(x=>x.classList.toggle("on",x.dataset.ctx===v));}
 document.querySelectorAll("#ctxSeg button").forEach(b=>{
-  b.addEventListener("click",()=>{setCtx(b.dataset.ctx);draw();updateCard()});
+  b.addEventListener("click",()=>{setCtx(b.dataset.ctx);draw();judge();});
 });
 
+/* ════════════════════════════════════════════════
+   K 棒清單:就地編輯 / 刪除 / 新增 / 拖曳排序
+════════════════════════════════════════════════ */
+function rowDir(k){return k.c>k.o?["紅","var(--up)"]:k.c<k.o?["綠","var(--down)"]:["平","var(--doji)"];}
+function renderList(){
+  const box=$("clist");box.innerHTML="";
+  candles.forEach((k,i)=>{
+    const row=document.createElement("div");
+    row.className="crow"+(i===sel?" sel":"")+(reorder&&reorder.cand===k?" reordering":"");
+    const main=document.createElement("div");main.className="crow-main";
+
+    const dr=document.createElement("button");dr.className="drag";dr.textContent="≡";dr.title="拖曳排序";
+    dr.addEventListener("touchstart",e=>startReorder(e,k),{passive:false});
+    dr.addEventListener("mousedown",e=>startReorder(e,k));
+
+    const info=document.createElement("div");info.className="cinfo";
+    const[d,dc]=rowDir(k);
+    const title=document.createElement("div");title.className="ctitle";
+    title.innerHTML=`第 ${i+1} 根${i===candles.length-1?'<span style="color:var(--dim);font-weight:400">·最新</span>':''} <span class="tag" style="background:${dc}">${d}</span>`;
+    const sub=document.createElement("div");sub.className="csub";
+    sub.textContent=k.rp
+      ?`開 ${fmtPrice(k.rp.o)}　高 ${fmtPrice(k.rp.h)}　低 ${fmtPrice(k.rp.l)}　收 ${fmtPrice(k.rp.c)}`
+      :`開 ${px(k.o)}　高 ${px(k.h)}　低 ${px(k.l)}　收 ${px(k.c)}　(點我輸入真實股價)`;
+    info.appendChild(title);info.appendChild(sub);
+    info.addEventListener("click",()=>{sel=i;expanded=(expanded===i?-1:i);renderList();draw();judge();});
+
+    const del=document.createElement("button");del.className="cdel";del.textContent="⊖";del.title="刪除這根";
+    del.addEventListener("click",e=>{e.stopPropagation();removeCandle(i);});
+
+    main.appendChild(dr);main.appendChild(info);main.appendChild(del);
+    row.appendChild(main);
+    if(expanded===i)row.appendChild(buildEditor(i,k));
+    box.appendChild(row);
+  });
+}
+function buildEditor(i,k){
+  const ed=document.createElement("div");ed.className="cedit";
+  const vals=k.rp?{o:fmtPrice(k.rp.o),h:fmtPrice(k.rp.h),l:fmtPrice(k.rp.l),c:fmtPrice(k.rp.c)}
+                 :{o:px(k.o),h:px(k.h),l:px(k.l),c:px(k.c)};
+  const q=document.createElement("div");q.className="quotes";
+  [["o","開盤"],["h","最高"],["l","最低"],["c","收盤"]].forEach(([f,lab])=>{
+    const cell=document.createElement("div");cell.className="q";
+    cell.innerHTML=`<div class="l">${lab}</div>`;
+    const inp=document.createElement("input");
+    inp.type="text";inp.inputMode="decimal";inp.value=vals[f];inp.dataset.f=f;
+    cell.appendChild(inp);q.appendChild(cell);
+  });
+  const btn=document.createElement("button");btn.className="apply";btn.textContent="套用四價";
+  const apply=()=>applyEditor(i,ed);
+  btn.addEventListener("click",apply);
+  q.querySelectorAll("input").forEach(inp=>inp.addEventListener("keydown",e=>{if(e.key==="Enter")apply();}));
+  ed.appendChild(q);ed.appendChild(btn);
+  return ed;
+}
+function applyEditor(i,ed){
+  const get=f=>parseFloat(ed.querySelector(`input[data-f="${f}"]`).value);
+  let O=get("o"),H=get("h"),L=get("l"),C=get("c");
+  if([O,H,L,C].some(v=>isNaN(v)||v<=0)){setMsg("請填入四個有效價格(皆需大於 0)","err");return;}
+  const realH=Math.max(O,H,L,C),realL=Math.min(O,H,L,C);
+  const corrected=(realH!==H||realL!==L);
+  candles[i].rp={o:O,h:realH,l:realL,c:C};
+  sel=i;refit();draw();judge();renderList();
+  setMsg(corrected?`第 ${i+1} 根已套用(最高/最低已自動校正)`:`第 ${i+1} 根已套用`,corrected?"err":"ok");
+}
+function removeCandle(i){
+  candles.splice(i,1);
+  if(expanded===i)expanded=-1;else if(expanded>i)expanded--;
+  if(sel>=candles.length)sel=candles.length-1;
+  if(sel<0)sel=0;
+  refit();renderList();draw();judge();
+  setMsg("已刪除一根 K 棒","ok");
+}
+function addCandle(){
+  candles.push({o:42,c:58,h:70,l:30});
+  sel=candles.length-1;expanded=sel;
+  refit();renderList();draw();judge();
+  setMsg("已新增一根 K 棒,點它輸入真實股價或拖把手","ok");
+  $("clist").lastElementChild?.scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+$("addBtn").addEventListener("click",addCandle);
+
+/* ── 拖曳排序(以 ≡ 把手,手機/桌面皆可) ── */
+let reorder=null;
+function startReorder(e,cand){
+  e.preventDefault();e.stopPropagation();
+  expanded=-1;sel=candles.indexOf(cand);
+  reorder={cand};renderList();
+}
+function reorderMove(e){
+  if(!reorder)return;
+  e.preventDefault();
+  const y=(e.touches?e.touches[0]:e).clientY;
+  const cur=candles.indexOf(reorder.cand);
+  const rows=[...$("clist").children];
+  let tgt=rows.length-1;
+  for(let j=0;j<rows.length;j++){const r=rows[j].getBoundingClientRect();if(y<r.top+r.height/2){tgt=j;break;}}
+  if(tgt>=0&&tgt!==cur){
+    candles.splice(cur,1);candles.splice(tgt,0,reorder.cand);
+    sel=tgt;renderList();draw();judge();
+  }
+}
+function endReorder(){if(reorder){reorder=null;renderList();draw();judge();setMsg("順序已更新","ok");}}
+document.addEventListener("touchmove",reorderMove,{passive:false});
+document.addEventListener("mousemove",reorderMove);
+document.addEventListener("touchend",endReorder);
+document.addEventListener("mouseup",endReorder);
+
+/* ── 經典型態快選 ── */
 function buildChips(){
   const box=$("chips");box.innerHTML="";
-  PRESETS[cur].forEach(p=>{
+  ALLPRESETS.forEach(p=>{
     const b=document.createElement("button");b.textContent=p.t;
     b.addEventListener("click",()=>{
-      T().candles=p.k.map(o=>({...o}));
-      T().sel=T().candles.length-1;
-      T().axis={...DEF_AXIS};
+      candles=p.k.map(o=>({...o}));
+      axis={...DEF_AXIS};sel=candles.length-1;expanded=-1;
       if(p.ctx)setCtx(p.ctx);
-      draw();updateCard();
+      renderList();draw();judge();
+      setMsg(`已載入「${p.t}」,可在清單繼續編輯`,"ok");
     });
     box.appendChild(b);
   });
 }
 
 /* ════════════════════════════════════════════════
-   四價輸入框 + 套用按鈕:輸入任意真實股價,按套用後重算價格軸並判讀
+   我的收藏:把整個清單命名存進 localStorage
 ════════════════════════════════════════════════ */
-function setMsg(text,cls){
-  const el=$("applyMsg");el.textContent=text;
-  el.className="apply-msg"+(cls?" "+cls:"");
-}
-["qO","qH","qL","qC"].forEach(id=>{
-  const el=$(id);
-  el.addEventListener("focus",()=>{editing.add(id);el.select();});
-  el.addEventListener("blur",()=>{editing.delete(id);});
-  el.addEventListener("keydown",e=>{if(e.key==="Enter")applyQuotes();});
-});
+const SAVE_KEY="kline_saves_v2";
+const loadSaves=()=>{try{return JSON.parse(localStorage.getItem(SAVE_KEY))||[];}catch(e){return [];}};
+const persistSaves=arr=>localStorage.setItem(SAVE_KEY,JSON.stringify(arr));
 
-function applyQuotes(){
-  let O=parseFloat($("qO").value),H=parseFloat($("qH").value),
-      L=parseFloat($("qL").value),C=parseFloat($("qC").value);
-  if([O,H,L,C].some(v=>isNaN(v)||v<=0)){
-    setMsg("請填入四個有效價格(皆需大於 0)","err");return;
+function renderSaves(){
+  const box=$("saves");box.innerHTML="";
+  const arr=loadSaves();
+  if(!arr.length){
+    const s=document.createElement("span");s.className="empty";
+    s.textContent="尚無收藏,按右上「＋ 儲存目前畫面」即可保存";
+    box.appendChild(s);return;
   }
-  /* 自動校正:最高=四價最大、最低=四價最小 */
-  const realH=Math.max(O,H,L,C),realL=Math.min(O,H,L,C);
-  const corrected=(realH!==H||realL!==L);
-  H=realH;L=realL;
-
-  /* 其他根目前的真實股價(用舊軸換算),與這根的新四價一起決定新軸範圍 */
-  const sel=T().sel;
-  const reals=T().candles.map((k,i)=>i===sel
-    ? {o:O,h:H,l:L,c:C}
-    : {o:priceOf(k.o),h:priceOf(k.h),l:priceOf(k.l),c:priceOf(k.c)});
-  let newMin=Math.min(...reals.map(r=>r.l));
-  let newMax=Math.max(...reals.map(r=>r.h));
-  let span=newMax-newMin;
-  if(span<1e-6){span=Math.max(newMax*0.04,1);} // 一字線:給軸一點寬度
-  const pad=0.235*span;                          // 讓價格範圍落在內部 16~84 帶
-  const axis={min:newMin-pad,max:newMax+pad};
-  T().axis=axis;
-
-  /* 用新軸把每根 K 棒的真實股價映射回內部 0~100 */
-  T().candles.forEach((k,i)=>{
-    const r=reals[i];
-    k.o=un(r.o,axis);k.c=un(r.c,axis);k.h=un(r.h,axis);k.l=un(r.l,axis);
+  arr.forEach(rec=>{
+    const chip=document.createElement("div");chip.className="save-chip";
+    const name=document.createElement("span");name.className="name";
+    name.textContent=`${rec.name}·${rec.candles.length}根`;
+    name.addEventListener("click",()=>loadSave(rec));
+    const del=document.createElement("button");del.className="del";del.textContent="×";del.title="刪除";
+    del.addEventListener("click",e=>{e.stopPropagation();deleteSave(rec.id,rec.name);});
+    chip.appendChild(name);chip.appendChild(del);
+    box.appendChild(chip);
   });
-
-  editing.clear();
-  draw();updateCard();
-  setMsg(corrected?"已套用(最高/最低已自動校正)":"已套用,型態如下方判讀",corrected?"err":"ok");
 }
-$("applyBtn").addEventListener("click",applyQuotes);
+function saveCurrent(){
+  if(!candles.length){setMsg("清單是空的,沒有東西可以收藏","err");return;}
+  const name=(prompt("幫這個畫面取個名字:")||"").trim();if(!name)return;
+  const rec={id:Date.now().toString(36),name,ctx:ctxNow,sel,axis:{...axis},
+    candles:candles.map(k=>({o:k.o,c:k.c,h:k.h,l:k.l,rp:k.rp?{...k.rp}:null}))};
+  const arr=loadSaves();arr.unshift(rec);persistSaves(arr);renderSaves();
+  setMsg(`已收藏「${name}」`,"ok");
+}
+function loadSave(rec){
+  candles=rec.candles.map(k=>({o:k.o,c:k.c,h:k.h,l:k.l,...(k.rp?{rp:{...k.rp}}:{})}));
+  axis={...rec.axis};sel=Math.min(rec.sel??candles.length-1,candles.length-1);if(sel<0)sel=0;expanded=-1;
+  setCtx(rec.ctx);renderList();draw();judge();
+  setMsg(`已載入收藏「${rec.name}」,可直接編輯`,"ok");
+}
+function deleteSave(id,name){
+  if(!confirm(`確定刪除收藏「${name}」?`))return;
+  persistSaves(loadSaves().filter(r=>r.id!==id));renderSaves();
+}
+$("saveBtn").addEventListener("click",saveCurrent);
 
 /* ── 啟動 ── */
-buildChips();resize();updateCard();
+buildChips();renderSaves();renderList();resize();judge();
 </script>
 </body>
 </html>
