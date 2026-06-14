@@ -67,9 +67,9 @@
   }
   .mini-btn:active{opacity:.8}
   .clist{padding:0 16px}
-  .crow{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;transition:border-color .12s}
+  .crow{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;transition:border-color .12s,box-shadow .15s ease}
   .crow.sel{border-color:var(--doji)}
-  .crow.reordering{border-color:var(--doji);opacity:.65}
+  .crow.reordering{position:relative;z-index:30;border-color:var(--doji);box-shadow:0 14px 30px rgba(0,0,0,.55)}
   .crow-main{display:flex;align-items:center;gap:10px}
   .crow .drag{cursor:grab;color:var(--dim);font-size:19px;background:none;border:none;padding:0 4px;font-family:inherit;touch-action:none}
   .cinfo{flex:1;min-width:0;cursor:pointer}
@@ -743,6 +743,17 @@ function reorderMove(e){
     candles.splice(cur,1);candles.splice(tgt,0,reorder.cand);
     sel=tgt;renderList();draw();judge();
   }
+  liftFollow(y);
+}
+/* 讓被拖列放大、跟著手指走,營造「拔起來懸浮」感 */
+function liftFollow(y){
+  const el=$("clist").querySelector(".crow.reordering");
+  if(!el)return;
+  el.style.transform="";                       // 先還原,量「靜止位置」中心
+  const r=el.getBoundingClientRect();
+  const dy=y-(r.top+r.height/2);
+  el.style.willChange="transform";
+  el.style.transform=`translateY(${dy}px) scale(1.045)`;
 }
 function endReorder(){if(reorder){reorder=null;renderList();draw();judge();setMsg("順序已更新","ok");}}
 document.addEventListener("touchmove",reorderMove,{passive:false});
