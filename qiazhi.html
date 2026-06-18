@@ -120,6 +120,25 @@
   }
   .list-note{font-size:11px;color:var(--dim);padding:6px 16px 0;line-height:1.5}
 
+  /* 怎麼填說明(摺疊) */
+  details.help{margin:10px 16px 0;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  details.help>summary{
+    list-style:none;cursor:pointer;font-size:13px;font-weight:800;color:var(--doji);
+    padding:12px 14px;display:flex;align-items:center;justify-content:space-between;
+  }
+  details.help>summary::-webkit-details-marker{display:none}
+  details.help>summary .chev{color:var(--dim);font-size:12px;transition:transform .2s}
+  details.help[open]>summary .chev{transform:rotate(180deg)}
+  .help-body{padding:0 14px 14px;font-size:13px;line-height:1.75;color:var(--ink);border-top:1px dashed var(--line)}
+  .help-body h4{font-size:12px;color:var(--doji);margin:12px 0 4px;letter-spacing:.5px}
+  .help-body p{color:var(--dim);margin:2px 0}
+  .help-body b{color:var(--ink)}
+  .help-body ul{list-style:none;margin:2px 0}
+  .help-body li{color:var(--dim);padding:3px 0 3px 16px;position:relative}
+  .help-body li::before{content:"·";position:absolute;left:4px;color:var(--doji);font-weight:800}
+  .help-eg{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px;font-variant-numeric:tabular-nums}
+  .help-eg .kbd{color:var(--up);font-weight:800} .help-eg .db{color:var(--down);font-weight:800}
+
   /* 未來自訂逐日 */
   .future-wrap{padding:4px 16px 0}
   .future-row{display:flex;flex-wrap:wrap;gap:8px}
@@ -222,6 +241,32 @@
   <table class="kt" id="ktTable"></table>
   <div class="kt-note">扣價＝再過幾天要從均線「扣掉」的舊收盤價;抵價＝那天假設補進來的新收盤價。<b style="color:var(--up)">抵&gt;扣→上彎</b>、<b style="color:var(--down)">抵&lt;扣→下彎</b>、抵＝扣→走平。</div>
 </div>
+
+<details class="help">
+  <summary>📊 怎麼填？收盤價去哪找<span class="chev">▼ 點開</span></summary>
+  <div class="help-body">
+    <h4>① 要填什麼</h4>
+    <p>每一格填該股<b>「那一天的收盤價」</b>就好(不用開高低)。由左到右＝<b>由舊到新</b>,最右邊那格是<b>最近一天</b>。</p>
+    <p>至少要填滿你想看的最長均線天數——看 20MA 就至少 <b>20 筆</b>;填越多,線畫得越完整。</p>
+
+    <h4>② 收盤價去哪抓(台股)</h4>
+    <ul>
+      <li><b>手機券商 App</b>(富邦、元大…):個股 → 技術線圖 / 歷史成交,逐日看「收盤」</li>
+      <li><b>Yahoo 奇摩股市</b>:搜個股 → 「歷史行情」,有每日收盤一覽</li>
+      <li><b>Goodinfo! 台灣股市資訊網</b>:個股 → 「股價」→ 日線,可整段複製</li>
+      <li><b>證交所 TWSE</b>:「個股日成交資訊」可下載整月 CSV</li>
+    </ul>
+    <p>抓最近一個多月(約 20～30 個交易日)的收盤價,從舊到新依序填入即可。</p>
+
+    <h4>③ 它怎麼算(移動扣抵)</h4>
+    <p>均線＝最近 N 天收盤的平均。每過一天會<b>丟掉最舊一天(扣價)、補進最新一天(抵價)</b>:<span class="kbd">抵&gt;扣→上彎</span>、<span class="db">抵&lt;扣→下彎</span>、相等→走平。</p>
+    <div class="help-eg">
+      5MA 例:過去 5 天 45 47 49 46 <b>45</b>,均價 46.4<br>
+      今天收 <b>48</b> → 扣掉最舊的 <span class="kbd">45</span>、補進 <span class="db">48</span><br>
+      新 5MA ＝ (232 − 45 + 48) ÷ 5 ＝ <b>47</b>(抵 48 &gt; 扣 45,所以上彎)
+    </div>
+  </div>
+</details>
 
 <div class="list-head">
   收盤價清單(由左到右＝時間順序,右邊＝最新)<button id="addBtn" class="mini-btn">＋ 一天</button>
