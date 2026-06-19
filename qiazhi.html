@@ -772,11 +772,15 @@ $("saveBtn").addEventListener("click",saveCurrent);
    匯出/載入:分享碼(base64,跨機合併)
 ════════════════════════════════════════════════ */
 const SHARE_TAG="QZ1:";
-const encodeShare=arr=>SHARE_TAG+btoa(unescape(encodeURIComponent(JSON.stringify(arr))));
+const encodeShare=arr=>SHARE_TAG+btoa(unescape(encodeURIComponent(JSON.stringify(arr))))
+  .replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
 const decodeShare=code=>{
   const c=code.trim();
   if(!c.startsWith(SHARE_TAG))throw new Error("tag");
-  return JSON.parse(decodeURIComponent(escape(atob(c.slice(SHARE_TAG.length)))));
+  // 還原 base64url 並吃掉搬運途中混進的空白/換行(舊標準base64無 -/_,故同樣相容)
+  let b=c.slice(SHARE_TAG.length).replace(/\s+/g,"").replace(/-/g,"+").replace(/_/g,"/");
+  while(b.length%4)b+="=";
+  return JSON.parse(decodeURIComponent(escape(atob(b))));
 };
 const newId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 function openShare(){$("sharePanel").style.display="block";}
