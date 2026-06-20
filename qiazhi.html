@@ -213,6 +213,7 @@
 
 <div class="seg-label">未來股價假設</div>
 <div class="seg tight" id="scenSeg">
+  <button data-s="auto">🤖 自動</button>
   <button data-s="flat" class="on">持平</button>
   <button data-s="rise">緩漲</button>
   <button data-s="fall">緩跌</button>
@@ -344,17 +345,38 @@ function ma(period,series,endIdx){
   return s/period;
 }
 
+// 自動研判:綜合「股價 vs 20MA」與「5MA 彎的方向」判斷情境,並用近10日平均日幅估速度
+function autoScenario(){
+  const n=closes.length;
+  if(n<5)return {dir:"flat",step:0.5,reason:"收盤價太少,暫以持平估"};
+  const last=closes[n-1];
+  const ma20=ma(20,closes,n-1);              // 不足20筆會是 null
+  const ma5now=ma(5,closes,n-1), ma5prev=ma(5,closes,n-2);
+  const ma5Slope=(ma5now!=null&&ma5prev!=null)?ma5now-ma5prev:0; // 5MA 在上彎還下彎
+  // 近10日平均每日漲跌幅(%),取絕對值當緩漲/緩跌速度,夾在 0.2%~3%
+  const span=Math.min(10,n-1);let sum=0,cnt=0;
+  for(let i=n-span;i<n;i++){if(i>0){sum+=(closes[i]-closes[i-1])/closes[i-1];cnt++;}}
+  let step=cnt?Math.abs(sum/cnt*100):0.5;
+  step=Math.round(Math.min(3,Math.max(0.2,step))*10)/10;
+  const refMA=ma20!=null?ma20:ma5now, refName=ma20!=null?"20MA":"5MA";
+  if(last>refMA*1.001&&ma5Slope>0)  return {dir:"rise",step,reason:`股價站上 ${refName}、5MA 上彎 → 偏多`};
+  if(last<refMA*0.999&&ma5Slope<0)  return {dir:"fall",step,reason:`股價跌破 ${refName}、5MA 下彎 → 偏空`};
+  return {dir:"flat",step,reason:`價與均線方向不一致 → 暫判盤整`};
+}
+
 // 依情境產生未來收盤價,接在歷史後面,回傳完整序列與分界
 function buildSeries(){
   const hist=closes.slice();
   const full=hist.slice();
   const last=hist.length?hist[hist.length-1]:100;
+  let eff=scenario, step=stepPct;
+  if(scenario==="auto"){const a=autoScenario();eff=a.dir;step=a.step;} // 自動:換成研判出的方向與幅度
   let prev=last;
   for(let d=0;d<projDays;d++){
     let next;
-    if(scenario==="flat")next=prev;
-    else if(scenario==="rise")next=prev*(1+stepPct/100);
-    else if(scenario==="fall")next=prev*(1-stepPct/100);
+    if(eff==="flat")next=prev;
+    else if(eff==="rise")next=prev*(1+step/100);
+    else if(eff==="fall")next=prev*(1-step/100);
     else{ // custom:有填用填的,沒填沿用前一日
       const v=futureCustom[d];
       next=(v!==undefined&&v!==null&&!isNaN(v)&&v>0)?v:prev;
@@ -489,7 +511,13 @@ function detectSwings(w){
 /* ════════════════════════════════════════════════
    解讀卡 + 扣抵表
 ════════════════════════════════════════════════ */
-function scenName(){return {flat:"維持現價",rise:`每日緩漲約 ${stepPct}%`,fall:`每日緩跌約 ${stepPct}%`,custom:"你自訂的未來價"}[scenario];}
+function scenName(){
+  if(scenario==="auto"){
+    const a=autoScenario();
+    return {flat:"自動研判：盤整(持平)",rise:`自動研判：偏多(緩漲約 ${a.step}%/日)`,fall:`自動研判：偏空(緩跌約 ${a.step}%/日)`}[a.dir];
+  }
+  return {flat:"維持現價",rise:`每日緩漲約 ${stepPct}%`,fall:`每日緩跌約 ${stepPct}%`,custom:"你自訂的未來價"}[scenario];
+}
 
 function render(){
   const {full,histLen}=buildSeries();
@@ -497,6 +525,21 @@ function render(){
   renderVerdict(full,histLen);
   renderSignals(full,histLen);
   renderKtable(full,histLen);
+  updateScenHint();
+}
+
+// 自動模式時:畫面提示寫出研判理由,並讓手動「每日幅度」旋鈕變灰(已被自動接管)
+function updateScenHint(){
+  const h=$("hint"),knob=$("stepKnob");
+  if(scenario==="auto"){
+    const a=autoScenario();
+    const dirTxt=a.dir==="rise"?`緩漲 約 ${a.step}%/日`:a.dir==="fall"?`緩跌 約 ${a.step}%/日`:"持平";
+    if(h)h.textContent=`🤖 自動研判：${a.reason}，套用${dirTxt}`;
+    if(knob){knob.style.opacity=.4;knob.style.pointerEvents="none";$("stepV").textContent=a.dir==="flat"?"—":a.step+"%";}
+  }else{
+    if(h)h.textContent="改下方收盤價或切換情境,圖會即時重算";
+    if(knob){knob.style.opacity="";knob.style.pointerEvents="";$("stepV").textContent=stepPct+"%";}
+  }
 }
 
 // 其他參考訊號卡:四種訊號各一行,白話描述「第幾天、價位多少」
@@ -541,11 +584,12 @@ function renderSignals(full,histLen){
 
   // ④ 歷史波段高低點(只看你輸入的歷史段)
   const sw=detectSwings(2);
+  const ago=i=>closes.length-i; // 從最新一天回推幾天(對齊使用者習慣的講法)
   if(sw.high!=null||sw.low!=null){
     const parts=[];
-    if(sw.high!=null)parts.push(`高點在第 <b>${sw.high+1}</b> 天 <span class="dn">${fmt(closes[sw.high])}</span> 元`);
-    if(sw.low!=null)parts.push(`低點在第 <b>${sw.low+1}</b> 天 <span class="up">${fmt(closes[sw.low])}</span> 元`);
-    rows+=li("🎯",`歷史最近一個波段${parts.join("、")}。`);
+    if(sw.high!=null)parts.push(`高點 第${sw.high+1}天（${ago(sw.high)}天前）<span class="dn">${fmt(closes[sw.high])}</span>`);
+    if(sw.low!=null)parts.push(`低點 第${sw.low+1}天（${ago(sw.low)}天前）<span class="up">${fmt(closes[sw.low])}</span>`);
+    rows+=li("🎯",`歷史最近波段：${parts.join("、")}`);
   }else{
     rows+=li("🎯",`<span class="mut">歷史段還抓不到明顯的波段高低點（資料偏短或太平）。</span>`);
   }
