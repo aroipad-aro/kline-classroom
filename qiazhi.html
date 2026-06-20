@@ -64,12 +64,19 @@
 
   /* 畫布 */
   .stage{position:relative;height:288px;flex:0 0 auto;margin-top:6px}
-  canvas{display:block;width:100%;height:100%;touch-action:none}
+  canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
   .hint{
     position:absolute;bottom:6px;left:50%;transform:translateX(-50%);
     font-size:11px;color:var(--dim);background:rgba(15,19,32,.75);
     padding:3px 14px;border-radius:99px;pointer-events:none;transition:opacity .5s;white-space:nowrap;
   }
+  .zoom-reset{
+    position:absolute;top:6px;right:6px;z-index:2;font-family:inherit;
+    background:rgba(15,19,32,.8);border:1px solid var(--line);color:var(--dim);
+    font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;cursor:pointer;
+    opacity:0;transition:opacity .2s;pointer-events:none;
+  }
+  .zoom-reset.show{opacity:1;pointer-events:auto}
 
   /* 解讀卡 */
   .card{margin:10px 16px 4px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
@@ -238,6 +245,7 @@
 
 <div class="stage">
   <canvas id="cv"></canvas>
+  <button id="resetView" class="zoom-reset">⟲ 重設縮放</button>
   <div class="hint" id="hint">改下方收盤價或切換情境,圖會即時重算</div>
 </div>
 
@@ -521,6 +529,7 @@ function scenName(){
 
 function render(){
   const {full,histLen}=buildSeries();
+  lastFull=full;lastHist=histLen;
   draw(full,histLen);
   renderVerdict(full,histLen);
   renderSignals(full,histLen);
@@ -658,17 +667,79 @@ function renderKtable(full,histLen){
 ════════════════════════════════════════════════ */
 const cv=$("cv"),cx=cv.getContext("2d");
 let W,H,dpr;
+let lastFull=null,lastHist=0;          // 暫存目前資料,供縮放/拖移時快速重繪
+let viewZ=1,viewX=0,viewY=0;           // 視圖:縮放倍率與平移量(螢幕px)
 function resize(){
   dpr=window.devicePixelRatio||1;
   const r=cv.parentElement.getBoundingClientRect();
   cv.width=r.width*dpr;cv.height=r.height*dpr;
-  W=r.width;H=r.height;cx.setTransform(dpr,0,0,dpr,0,0);render();
+  W=r.width;H=r.height;cx.setTransform(dpr,0,0,dpr,0,0);
+  viewZ=1;viewX=0;viewY=0;              // 視窗尺寸變了就回正,避免平移量錯位
+  render();$("resetView").classList.remove("show");
 }
 window.addEventListener("resize",resize);
+
+/* ── 圖表縮放 / 拖移 ── */
+const clampZ=z=>Math.max(1,Math.min(8,z));
+function clampView(){                    // 夾住平移量,讓圖永遠填滿畫布、縮放=1時不可平移
+  viewZ=clampZ(viewZ);
+  viewX=Math.max(W-W*viewZ,Math.min(0,viewX));
+  viewY=Math.max(H-H*viewZ,Math.min(0,viewY));
+}
+function redraw(){
+  if(!lastFull)return;
+  clampView();
+  draw(lastFull,lastHist);
+  const moved=viewZ!==1||viewX!==0||viewY!==0;
+  $("resetView").classList.toggle("show",moved);
+}
+function resetView(){viewZ=1;viewX=0;viewY=0;redraw();}
+function zoomAt(mx,my,factor){           // 以 (mx,my) 為中心縮放,讓游標下的點不動
+  const nz=clampZ(viewZ*factor),ratio=nz/viewZ;
+  viewX=mx-(mx-viewX)*ratio;viewY=my-(my-viewY)*ratio;viewZ=nz;
+  redraw();
+}
+$("resetView").addEventListener("click",resetView);
+
+// 滾輪縮放
+cv.addEventListener("wheel",e=>{
+  e.preventDefault();
+  const r=cv.getBoundingClientRect();
+  zoomAt(e.clientX-r.left,e.clientY-r.top,e.deltaY<0?1.15:1/1.15);
+},{passive:false});
+
+// 滑鼠拖移
+let drag=false,dSX=0,dSY=0,dPX=0,dPY=0;
+cv.addEventListener("mousedown",e=>{drag=true;dSX=e.clientX;dSY=e.clientY;dPX=viewX;dPY=viewY;cv.style.cursor="grabbing";});
+window.addEventListener("mousemove",e=>{if(!drag)return;viewX=dPX+(e.clientX-dSX);viewY=dPY+(e.clientY-dSY);redraw();});
+window.addEventListener("mouseup",()=>{drag=false;cv.style.cursor="";});
+cv.addEventListener("dblclick",e=>{e.preventDefault();resetView();});
+
+// 觸控:單指拖移、雙指捏合縮放
+let tDrag=false,tSX=0,tSY=0,tPX=0,tPY=0,pD=0,pZ=1,pCX=0,pCY=0,pVX=0,pVY=0;
+cv.addEventListener("touchstart",e=>{
+  if(e.touches.length===1){tDrag=true;tSX=e.touches[0].clientX;tSY=e.touches[0].clientY;tPX=viewX;tPY=viewY;}
+  else if(e.touches.length===2){
+    tDrag=false;const[a,b]=e.touches,r=cv.getBoundingClientRect();
+    pD=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);pZ=viewZ;
+    pCX=(a.clientX+b.clientX)/2-r.left;pCY=(a.clientY+b.clientY)/2-r.top;pVX=viewX;pVY=viewY;
+  }
+},{passive:false});
+cv.addEventListener("touchmove",e=>{
+  e.preventDefault();
+  if(e.touches.length===1&&tDrag){viewX=tPX+(e.touches[0].clientX-tSX);viewY=tPY+(e.touches[0].clientY-tSY);redraw();}
+  else if(e.touches.length===2&&pD>0){
+    const[a,b]=e.touches,d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);
+    const nz=clampZ(pZ*(d/pD)),ratio=nz/pZ;
+    viewX=pCX-(pCX-pVX)*ratio;viewY=pCY-(pCY-pVY)*ratio;viewZ=nz;redraw();
+  }
+},{passive:false});
+cv.addEventListener("touchend",e=>{if(e.touches.length===0){tDrag=false;pD=0;}});
 const PT=18,PB=22,PL=8,PR=8;
 
 function draw(full,histLen){
   if(!W)return;
+  clampView();                          // 夾住縮放/平移範圍(render 與 redraw 兩條路徑共用)
   cx.clearRect(0,0,W,H);
   if(!full.length){
     cx.fillStyle="#6b7488";cx.font="13px sans-serif";cx.textAlign="center";
@@ -683,15 +754,18 @@ function draw(full,histLen){
   let span=hi-lo;if(span<1e-6)span=Math.max(hi*0.04,1);
   const pad=span*0.12;lo-=pad;hi+=pad;
   const n=full.length;
-  const xAt=i=>PL+(W-PL-PR)*(n<=1?0.5:i/(n-1));
-  const yAt=v=>PT+(H-PT-PB)*(1-(v-lo)/(hi-lo));
+  // 基礎映射 + 視圖縮放平移(viewZ/viewX/viewY),文字字級不受縮放影響
+  const bx=i=>PL+(W-PL-PR)*(n<=1?0.5:i/(n-1));
+  const by=v=>PT+(H-PT-PB)*(1-(v-lo)/(hi-lo));
+  const xAt=i=>bx(i)*viewZ+viewX;
+  const yAt=v=>by(v)*viewZ+viewY;
 
   // 歷史/未來分界線
   if(histLen<n){
     const xb=xAt(histLen-1);
-    cx.strokeStyle="rgba(232,179,75,.35)";cx.setLineDash([4,4]);cx.lineWidth=1;
+    cx.strokeStyle="rgba(232,77,91,.6)";cx.setLineDash([4,4]);cx.lineWidth=1;
     cx.beginPath();cx.moveTo(xb,PT-6);cx.lineTo(xb,H-PB+4);cx.stroke();cx.setLineDash([]);
-    cx.fillStyle="#7f8aa8";cx.font="10px sans-serif";cx.textAlign="left";
+    cx.fillStyle=getCss("--up");cx.font="bold 10px sans-serif";cx.textAlign="left";
     cx.fillText("今天 →",xb+3,PT+2);
   }
 
@@ -739,8 +813,9 @@ function drawSignals(full,histLen,xAt,yAt){
   }
   const sw=detectSwings(2);
   cx.fillStyle=getCss("--doji");cx.font="9px sans-serif";cx.textAlign="center";
-  if(sw.high!=null){const x=xAt(sw.high),y=yAt(closes[sw.high]);triUp(x,y-8,4);cx.fillText("高",x,y-13);}
-  if(sw.low!=null){const x=xAt(sw.low),y=yAt(closes[sw.low]);triDown(x,y+8,4);cx.fillText("低",x,y+19);}
+  cx.font="bold 10px sans-serif";
+  if(sw.high!=null){const x=xAt(sw.high),y=yAt(closes[sw.high]);triUp(x,y-8,4);cx.fillText("高 "+fmt(closes[sw.high]),x,y-14);}
+  if(sw.low!=null){const x=xAt(sw.low),y=yAt(closes[sw.low]);triDown(x,y+8,4);cx.fillText("低 "+fmt(closes[sw.low]),x,y+21);}
 }
 function triUp(x,y,r){cx.beginPath();cx.moveTo(x,y-r);cx.lineTo(x-r,y+r);cx.lineTo(x+r,y+r);cx.closePath();cx.fill();}
 function triDown(x,y,r){cx.beginPath();cx.moveTo(x,y+r);cx.lineTo(x-r,y-r);cx.lineTo(x+r,y-r);cx.closePath();cx.fill();}
