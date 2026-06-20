@@ -179,6 +179,13 @@
   .msg-row{padding:4px 16px 0;min-height:16px}
   .msg{font-size:11px;color:var(--dim);line-height:1.4}
   .msg.err{color:var(--up)} .msg.ok{color:var(--down)}
+  /* 其他參考訊號卡 */
+  .sig-card{margin-top:6px}
+  .sig-title{font-size:12px;color:var(--doji);font-weight:800;letter-spacing:.5px;margin-bottom:9px}
+  .sig-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+  .sig-list li{display:flex;gap:9px;font-size:13.5px;line-height:1.6;align-items:flex-start}
+  .sig-ic{flex:0 0 auto;width:20px;text-align:center;font-size:15px;line-height:1.5}
+  .sig-tx b{color:var(--doji)} .sig-tx .up{color:var(--up);font-weight:800} .sig-tx .dn{color:var(--down);font-weight:800} .sig-tx .mut{color:var(--neutral)}
 </style>
 </head>
 <body>
@@ -239,6 +246,11 @@
     <span class="badge" id="vBadge" style="background:var(--neutral)">—</span>
   </div>
   <div class="explain" id="vExp">載入範例或輸入收盤價即可開始推算。</div>
+</div>
+
+<div class="card sig-card">
+  <div class="sig-title">其他參考訊號（同一套移動扣抵推算）</div>
+  <ul class="sig-list" id="sigList"></ul>
 </div>
 
 <div class="kt-wrap">
@@ -399,6 +411,81 @@ function detectFlat(full,histLen){
   return cnt; // 往回連續糾結的天數(含今天)
 }
 
+// ① 均線轉折拐點:某條均線在未來「斜率變號」的第一天(下彎轉上彎＝低點、上彎轉下彎＝高點)
+function detectMaTurn(period,full,histLen){
+  const line=maLine(period,full);
+  const start=histLen-1;
+  if(start<period||line[start]==null||line[start-1]==null)return null;
+  let slopePrev=line[start]-line[start-1];
+  for(let i=start+1;i<full.length;i++){
+    if(line[i]==null||line[i-1]==null)continue;
+    const slope=line[i]-line[i-1];
+    if(Math.abs(slopePrev)<1e-9){slopePrev=slope;continue;}
+    if((slopePrev>0&&slope<0)||(slopePrev<0&&slope>0)){
+      return {day:(i-1)-start, price:line[i-1], high:slopePrev>0}; // 極值落在 i-1
+    }
+    if(Math.abs(slope)>1e-9)slopePrev=slope;
+  }
+  return null;
+}
+
+// ② 股價穿越均線:未來收盤價站上/跌破某條均線的第一天
+function detectPriceCrossMa(period,full,histLen){
+  const line=maLine(period,full);
+  const start=histLen-1;
+  if(line[start]==null)return null;
+  let diffPrev=full[start]-line[start];
+  for(let i=start+1;i<full.length;i++){
+    if(line[i]==null)continue;
+    const diff=full[i]-line[i];
+    if(Math.abs(diffPrev)<1e-9){diffPrev=diff;continue;}
+    if((diffPrev<0&&diff>=0)||(diffPrev>0&&diff<=0)){
+      return {day:i-start, price:full[i], up:diffPrev<0};
+    }
+    if(Math.abs(diff)>1e-9)diffPrev=diff;
+  }
+  return null;
+}
+
+// ③ 多空排列:5>10>20＝完全多頭、5<10<20＝完全空頭
+function alignState(full,i){
+  const a=ma(5,full,i),b=ma(10,full,i),c=ma(20,full,i);
+  if(a==null||b==null||c==null)return null;
+  if(a>b&&b>c)return "bull";
+  if(a<b&&b<c)return "bear";
+  return "mix";
+}
+function detectAlign(full,histLen){
+  const start=histLen-1;
+  const now=alignState(full,start);
+  if(now==null)return null;
+  for(let i=start+1;i<full.length;i++){
+    const s=alignState(full,i);
+    if(s==null)continue;
+    if(s!==now&&(s==="bull"||s==="bear"))return {day:i-start,state:s,now};
+  }
+  return {day:null,state:now,now}; // 未來不變,回報目前排列
+}
+
+// ④ 歷史波段高低點:左右各 w 根都更低＝波段高點(反之為低點),回報最近一個
+function detectSwings(w){
+  w=w||2;const h=closes,highs=[],lows=[];
+  for(let i=w;i<h.length-w;i++){
+    let isH=true,isL=true;
+    for(let k=1;k<=w;k++){
+      if(h[i]<=h[i-k]||h[i]<=h[i+k])isH=false;
+      if(h[i]>=h[i-k]||h[i]>=h[i+k])isL=false;
+    }
+    if(isH)highs.push(i);
+    if(isL)lows.push(i);
+  }
+  return {
+    high:highs.length?highs[highs.length-1]:null,
+    low:lows.length?lows[lows.length-1]:null,
+    highs,lows
+  };
+}
+
 /* ════════════════════════════════════════════════
    解讀卡 + 扣抵表
 ════════════════════════════════════════════════ */
@@ -408,7 +495,62 @@ function render(){
   const {full,histLen}=buildSeries();
   draw(full,histLen);
   renderVerdict(full,histLen);
+  renderSignals(full,histLen);
   renderKtable(full,histLen);
+}
+
+// 其他參考訊號卡:四種訊號各一行,白話描述「第幾天、價位多少」
+function renderSignals(full,histLen){
+  const box=$("sigList");if(!box)return;
+  const li=(ic,tx)=>`<li><span class="sig-ic">${ic}</span><span class="sig-tx">${tx}</span></li>`;
+  if(closes.length<5){box.innerHTML=li("ℹ️",`<span class="mut">收盤價再多填幾筆,就會自動算出均線轉折、穿越、排列與波段高低點。</span>`);return;}
+  const dayTxt=d=>d===0?"就在最新這天":`約再 <b>${d}</b> 天`;
+  let rows="";
+
+  // ① 均線轉折拐點(看短均線 shortP)
+  const turn=detectMaTurn(shortP,full,histLen);
+  if(turn){
+    const k=turn.high?`<span class="dn">高點轉折（由上彎轉下彎）</span>`:`<span class="up">低點轉折（由下彎轉上彎）</span>`;
+    rows+=li(turn.high?"🔺":"🔻",`${shortP}MA ${dayTxt(turn.day)}出現${k},轉折價約 <b>${fmt(turn.price)}</b> 元。`);
+  }else{
+    rows+=li("〰️",`<span class="mut">未來 ${projDays} 天內 ${shortP}MA 沒有明顯轉折,維持同方向。</span>`);
+  }
+
+  // ② 股價穿越均線(對 longP 那條)
+  const pc=detectPriceCrossMa(longP,full,histLen);
+  if(pc){
+    const k=pc.up?`<span class="up">站上 ${longP}MA</span>`:`<span class="dn">跌破 ${longP}MA</span>`;
+    rows+=li("⚡",`收盤價 ${dayTxt(pc.day)}${k},約在 <b>${fmt(pc.price)}</b> 元。`);
+  }else{
+    rows+=li("⚡",`<span class="mut">未來 ${projDays} 天內 收盤價不會穿越 ${longP}MA。</span>`);
+  }
+
+  // ③ 多空排列達成日(需 20 筆才有 20MA)
+  if(closes.length>=20){
+    const al=detectAlign(full,histLen);
+    if(al&&al.day!=null){
+      const k=al.state==="bull"?`<span class="up">完全多頭排列（5＞10＞20）</span>`:`<span class="dn">完全空頭排列（5＜10＜20）</span>`;
+      rows+=li("📊",`${dayTxt(al.day)}形成${k}。`);
+    }else if(al){
+      const nm=al.state==="bull"?`<span class="up">多頭排列</span>`:al.state==="bear"?`<span class="dn">空頭排列</span>`:`<span class="mut">交錯糾結</span>`;
+      rows+=li("📊",`目前為${nm},未來 ${projDays} 天內不變。`);
+    }
+  }else{
+    rows+=li("📊",`<span class="mut">多空排列需要 20 筆收盤價（才有 20MA）,目前 ${closes.length} 筆。</span>`);
+  }
+
+  // ④ 歷史波段高低點(只看你輸入的歷史段)
+  const sw=detectSwings(2);
+  if(sw.high!=null||sw.low!=null){
+    const parts=[];
+    if(sw.high!=null)parts.push(`高點在第 <b>${sw.high+1}</b> 天 <span class="dn">${fmt(closes[sw.high])}</span> 元`);
+    if(sw.low!=null)parts.push(`低點在第 <b>${sw.low+1}</b> 天 <span class="up">${fmt(closes[sw.low])}</span> 元`);
+    rows+=li("🎯",`歷史最近一個波段${parts.join("、")}。`);
+  }else{
+    rows+=li("🎯",`<span class="mut">歷史段還抓不到明顯的波段高低點（資料偏短或太平）。</span>`);
+  }
+
+  box.innerHTML=rows;
 }
 
 function renderVerdict(full,histLen){
@@ -534,7 +676,30 @@ function draw(full,histLen){
 
   // 扣抵區間:標出 shortP 的下一筆扣價 vs 現價
   drawDeductBand(full,histLen,xAt,yAt,n);
+
+  // 其他訊號標記:均線拐點 + 歷史波段高低點
+  drawSignals(full,histLen,xAt,yAt);
 }
+
+// 圖上標出均線轉折拐點與歷史波段高低點
+function drawSignals(full,histLen,xAt,yAt){
+  if(maOn[shortP]){
+    const turn=detectMaTurn(shortP,full,histLen);
+    if(turn){
+      const idx=histLen-1+turn.day, x=xAt(idx), y=yAt(turn.price);
+      cx.strokeStyle=turn.high?getCss("--down"):getCss("--up");
+      cx.lineWidth=2;cx.beginPath();cx.arc(x,y,4.5,0,7);cx.stroke();
+      cx.fillStyle=cx.strokeStyle;cx.font="bold 9px sans-serif";cx.textAlign=x>W*0.6?"right":"left";
+      cx.fillText(turn.high?"拐·高":"拐·低",x+(x>W*0.6?-7:7),turn.high?y-7:y+13);
+    }
+  }
+  const sw=detectSwings(2);
+  cx.fillStyle=getCss("--doji");cx.font="9px sans-serif";cx.textAlign="center";
+  if(sw.high!=null){const x=xAt(sw.high),y=yAt(closes[sw.high]);triUp(x,y-8,4);cx.fillText("高",x,y-13);}
+  if(sw.low!=null){const x=xAt(sw.low),y=yAt(closes[sw.low]);triDown(x,y+8,4);cx.fillText("低",x,y+19);}
+}
+function triUp(x,y,r){cx.beginPath();cx.moveTo(x,y-r);cx.lineTo(x-r,y+r);cx.lineTo(x+r,y+r);cx.closePath();cx.fill();}
+function triDown(x,y,r){cx.beginPath();cx.moveTo(x,y+r);cx.lineTo(x-r,y-r);cx.lineTo(x+r,y-r);cx.closePath();cx.fill();}
 
 // 折線:splitIdx 之前實線,之後虛線
 function drawSegLine(pts,splitIdx,col,lw,thin){
